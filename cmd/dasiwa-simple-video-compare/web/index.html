@@ -9,32 +9,35 @@
 <body>
   <main class="shell">
     <header class="topbar">
-      <div class="topbar-left">
+      <div class="topbar-header">
         <p class="eyebrow">DaSiWa Tooling</p>
         <h1>Simple Video Compare</h1>
-        <div class="compact-drops">
-          <article class="drop-compact" id="dropA">
-            <span class="badge">A</span>
-            <input id="pathA" placeholder="Drop file or paste path">
-            <button type="button" id="browseA" class="secondary mini">Browse</button>
-          </article>
-          <article class="drop-compact" id="dropB">
-            <span class="badge accent">B</span>
-            <input id="pathB" placeholder="Drop file or paste path">
-            <button type="button" id="browseB" class="secondary mini">Browse</button>
-          </article>
+      </div>
+      <div class="topbar-controls">
+        <div class="mode-tabs" aria-label="Compare mode">
+          <button class="tab active" data-mode="side">Side by Side</button>
+          <button class="tab" data-mode="slider">Slider</button>
+          <button class="tab" data-mode="blend">Blend</button>
+          <button class="tab" data-mode="diff">Difference</button>
+          <button id="toggleControlsBtn" class="top-toggle" type="button" title="Hide controls">Hide controls</button>
         </div>
+        <button id="statusBtn" type="button" class="status-btn" title="Runtime status">
+          <span id="statusDot" class="status-dot"></span>
+          <span class="status-text">Runtime</span>
+        </button>
       </div>
-      <div class="mode-tabs" aria-label="Compare mode">
-        <button class="tab active" data-mode="side">Side by Side</button>
-        <button class="tab" data-mode="slider">Slider</button>
-        <button class="tab" data-mode="blend">Blend</button>
-        <button class="tab" data-mode="diff">Difference</button>
-        <button id="toggleControlsBtn" class="top-toggle" type="button" title="Hide controls">Hide controls</button>
+      <div class="compact-drops">
+        <article class="drop-compact" id="dropA">
+          <span class="badge">A</span>
+          <input id="pathA" placeholder="Drop file or paste path">
+          <button type="button" id="browseA" class="secondary mini">Browse</button>
+        </article>
+        <article class="drop-compact" id="dropB">
+          <span class="badge accent">B</span>
+          <input id="pathB" placeholder="Drop file or paste path">
+          <button type="button" id="browseB" class="secondary mini">Browse</button>
+        </article>
       </div>
-      <button id="statusBtn" type="button" class="status-btn" title="System status">
-        <span id="statusDot" class="status-dot"></span>
-      </button>
     </header>
 
     <dialog id="runtimeDialog" class="runtime-dialog">

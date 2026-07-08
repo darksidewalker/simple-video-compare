@@ -38,21 +38,32 @@ input, select { padding: 0.56rem 0.66rem; width: 100%; }
 
 .shell { width: min(1900px, calc(100vw - 18px)); margin: 0 auto; padding: 9px 0; }
 .topbar {
-  display: grid;
-  grid-template-columns: minmax(230px, auto) 1fr auto;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
   border: 1px solid var(--line);
   border-radius: 16px;
   background: var(--panel);
   box-shadow: 0 0 40px rgba(99, 243, 255, 0.08);
 }
-.topbar-left { max-width: 640px; }
+.topbar-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.topbar-header h1 { font-size: clamp(18px, 2vw, 26px); margin: 0; }
+.topbar-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
 .compact-drops {
   display: flex;
-  gap: 6px;
-  margin-top: 6px;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 .drop-compact {
   display: inline-flex;
@@ -70,18 +81,20 @@ input, select { padding: 0.56rem 0.66rem; width: 100%; }
 .drop-compact .mini { padding: 3px 8px; font-size: 11px; white-space: nowrap; }
 .status-btn {
   position: relative;
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
-  width: 38px;
-  height: 38px;
+  gap: 6px;
+  padding: 4px 10px;
   border-radius: 999px;
   border: 1px solid var(--line);
   background: var(--panel);
   cursor: pointer;
-  padding: 0;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
 }
 .status-btn:hover { border-color: var(--cyan); }
+.status-text { letter-spacing: .06em; }
 .eyebrow { margin: 0; color: var(--cyan); text-transform: uppercase; letter-spacing: .22em; font-size: 10px; }
 h1 { margin: 1px 0 0; font-size: clamp(20px, 2.6vw, 34px); line-height: 1; }
 .status-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--red); }
