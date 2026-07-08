@@ -12,6 +12,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const blendControl = document.getElementById('blendControl');
   const toggleControlsBtn = document.getElementById('toggleControlsBtn');
   const videoDetailsBtn = document.getElementById('videoDetailsBtn');
+  const pathA = document.getElementById('pathA');
+  const pathB = document.getElementById('pathB');
   let detailsVisible = false;
   let cachedProbes = {};
 
@@ -19,7 +21,8 @@ document.addEventListener('DOMContentLoaded', () => {
   function checkBothLoaded() {
     const hasA = pathA.value.length > 0;
     const hasB = pathB.value.length > 0;
-    if (hasA || hasB) videoDetailsBtn.style.display = '';
+    if (hasA && hasB) videoDetailsBtn.style.display = '';
+    else videoDetailsBtn.style.display = 'none';
     if (hasA && hasB && !detailsVisible) loadAllProbes();
   }
   wireDropZone(document.getElementById('dropA'), document.getElementById('pathA'), videoA);
