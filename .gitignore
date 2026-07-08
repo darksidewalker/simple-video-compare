@@ -1,3 +1,6 @@
 dist/
 *.log
 .hermes/
+
+# Compiled binaries (built by build.sh / build.ps1)
+dasiwa-simple-video-compare-*
