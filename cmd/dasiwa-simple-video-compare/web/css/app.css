@@ -39,26 +39,27 @@ input, select { padding: 0.56rem 0.66rem; width: 100%; }
 .shell { width: min(1900px, calc(100vw - 18px)); margin: 0 auto; padding: 9px 0; }
 .topbar {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 12px 14px;
+  flex-direction: row;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 14px;
   border: 1px solid var(--line);
   border-radius: 16px;
   background: var(--panel);
   box-shadow: 0 0 40px rgba(99, 243, 255, 0.08);
+  flex-wrap: wrap;
 }
-.topbar-header {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
+.topbar > h1 {
+  font-size: clamp(16px, 1.6vw, 22px);
+  margin: 0;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
-.topbar-header h1 { font-size: clamp(18px, 2vw, 26px); margin: 0; }
-.topbar-controls {
+.topbar-drops {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  gap: 6px;
+  flex-shrink: 0;
 }
 .topbar-actions {
   display: flex;
