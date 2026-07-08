@@ -17,18 +17,18 @@ document.addEventListener('DOMContentLoaded', () => {
   let detailsVisible = false;
   let cachedProbes = {};
 
-  // Wire drop zones — show details button when both have paths
-  function checkBothLoaded() {
+  // Wire drop zones — show details button when at least one video is loaded
+  function checkAnyLoaded() {
     const hasA = pathA.value.length > 0;
     const hasB = pathB.value.length > 0;
-    if (hasA && hasB) videoDetailsBtn.style.display = '';
+    if (hasA || hasB) videoDetailsBtn.style.display = '';
     else videoDetailsBtn.style.display = 'none';
     if (hasA && hasB && !detailsVisible) loadAllProbes();
   }
   wireDropZone(document.getElementById('dropA'), document.getElementById('pathA'), videoA);
   wireDropZone(document.getElementById('dropB'), document.getElementById('pathB'), videoB);
-  pathA.addEventListener('input', checkBothLoaded);
-  pathB.addEventListener('input', checkBothLoaded);
+  pathA.addEventListener('input', checkAnyLoaded);
+  pathB.addEventListener('input', checkAnyLoaded);
   document.getElementById('browseA').addEventListener('click', () => localBrowser.open({ videoId: 'videoA', inputId: 'pathA' }));
   document.getElementById('browseB').addEventListener('click', () => localBrowser.open({ videoId: 'videoB', inputId: 'pathB' }));
 
@@ -111,6 +111,12 @@ document.addEventListener('DOMContentLoaded', () => {
   pingServer();
   setCompareMode('side');
   setInterval(pingServer, 30000);
+
+  // Sync toggle button initial state with actual controls visibility
+  const controlsInitiallyHidden = viewer.classList.contains('controls-hidden');
+  toggleControlsBtn.textContent = controlsInitiallyHidden ? 'Show controls' : 'Hide controls';
+  toggleControlsBtn.title = controlsInitiallyHidden ? 'Show controls' : 'Hide controls';
+  toggleControlsBtn.classList.toggle('active', controlsInitiallyHidden);
 
   function setCompareMode(mode) {
     viewer.classList.remove('side-mode', 'slider-mode', 'blend-mode', 'diff-mode');
