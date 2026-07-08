@@ -46,6 +46,8 @@ function createLocalBrowser(options) {
     const media = await api.post('/api/media/register', { path: item.path });
     const video = document.getElementById(target.videoId);
     const input = document.getElementById(target.inputId);
+    const key = target.videoId === 'videoA' ? 'A' : 'B';
+    const cacheDot = document.getElementById('cache' + key);
     input.value = media.path;
     input.dispatchEvent(new Event('input', { bubbles: true }));
     video.src = media.url;
@@ -53,6 +55,24 @@ function createLocalBrowser(options) {
     video.removeAttribute('data-object-url');
     video.load();
     dialog.close();
+
+    // Auto-cache: fire-and-forget, with visual feedback
+    if (media.id && !media.cached) {
+      setCacheState(cacheDot, 'caching', 'Caching…');
+      api.post('/api/media/cache', { id: media.id })
+        .then((updated) => {
+          if (updated && updated.cached) setCacheState(cacheDot, 'cached', 'Cached (' + formatBytes(updated.cache_bytes) + ')');
+        })
+        .catch(() => setCacheState(cacheDot, '', ''));
+    } else if (media && media.cached) {
+      setCacheState(cacheDot, 'cached', 'Cached (' + formatBytes(media.cache_bytes) + ')');
+    }
+  }
+
+  function setCacheState(el, state, title) {
+    if (!el) return;
+    el.className = 'cache-status' + (state ? ' ' + state : '');
+    el.title = title || '';
   }
 
   function formatBytes(bytes) {

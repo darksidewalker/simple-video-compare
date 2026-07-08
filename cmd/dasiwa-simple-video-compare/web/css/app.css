@@ -85,6 +85,19 @@ input, select { padding: 0.56rem 0.66rem; width: 100%; }
 .drop-compact.dragging { border-color: var(--pink); transform: translateY(-1px); }
 .drop-compact input { width: auto; min-width: 120px; max-width: 220px; font-size: 12px; padding: 3px 6px; }
 .drop-compact .mini { padding: 3px 8px; font-size: 11px; white-space: nowrap; }
+.cache-status {
+  width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; margin-left: 1px;
+  background: transparent; transition: background .2s;
+}
+.cache-status.caching {
+  background: var(--amber); box-shadow: 0 0 6px rgba(212, 149, 106, .6);
+  animation: cache-pulse 1s ease-in-out infinite;
+}
+.cache-status.cached { background: var(--green); box-shadow: 0 0 6px rgba(94, 196, 138, .45); }
+@keyframes cache-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .4; }
+}
 .status-btn {
   position: relative;
   display: inline-flex;
@@ -288,7 +301,7 @@ video { display: block; width: 100%; height: clamp(520px, calc(100vh - 208px), 1
   transform: translateX(-50%);
   border-color: rgba(99, 243, 255, .34);
   box-shadow: 0 12px 36px rgba(0, 0, 0, .36);
-  opacity: .78;
+  opacity: 1;
   backdrop-filter: blur(12px);
   transition: opacity .15s, transform .15s;
 }
