@@ -33,11 +33,9 @@ echo ""
 
 # Linux builds
 build_for "linux" "amd64"
-build_for "linux" "arm64"
 
 # macOS builds
 build_for "darwin" "amd64"
-build_for "darwin" "arm64"
 
 # Windows build
 build_for "windows" "amd64"
