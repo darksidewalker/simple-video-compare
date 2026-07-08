@@ -1,6 +1,6 @@
 # DaSiWa Simple Video Compare
 
-![Preview](assets/preview.webp)
+![Preview](assets/preview.png)
 
 Ein kleines Go-Single-Binary-Tool zum seitlichen Vergleich zweier Videodateien mit eingebetteter Dark-Cyber-Lokal-UX im Browser.
 
@@ -63,7 +63,7 @@ Das kompilierte Binary liegt dann unter `dist/dasiwa-simple-video-compare`.
 │   ├── media/               # FFmpeg/FFprobe-Werkzeugerkennung
 │   └── server/              # HTTP-Server, Routes, Handler, Cache
 ├── assets/                  # Projekt-Assets (Screenshots, Icons)
-│   ├── preview.webp         # Vorschaubild der Oberfläche
+│   ├── preview.png          # Vorschaubild der Oberfläche
 │   └── preview.svg          # SVG-Quelle des Vorschaubildes
 ├── dist/                    # Kompilierte Binaries
 └── go.mod                   # Go-Moduldefinition
