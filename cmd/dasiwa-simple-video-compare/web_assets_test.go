@@ -1,0 +1,119 @@
+package main
+
+import (
+	"io/fs"
+	"strings"
+	"testing"
+)
+
+func TestEmbeddedUIExposesAllCompareModesAndDenseViewerControls(t *testing.T) {
+	assets, err := fs.Sub(webFS, "web")
+	if err != nil {
+		t.Fatal(err)
+	}
+	indexBytes, err := fs.ReadFile(assets, "index.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cssBytes, err := fs.ReadFile(assets, "css/app.css")
+	if err != nil {
+		t.Fatal(err)
+	}
+	jsBytes, err := fs.ReadFile(assets, "js/app.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	index := string(indexBytes)
+	css := string(cssBytes)
+	js := string(jsBytes)
+
+	for _, mode := range []string{`data-mode="side"`, `data-mode="slider"`, `data-mode="blend"`, `data-mode="diff"`} {
+		if !strings.Contains(index, mode) {
+			t.Fatalf("index.html missing compare mode %s", mode)
+		}
+	}
+	if strings.Contains(index, "disabled>Slider") || strings.Contains(index, "disabled>Blend") || strings.Contains(index, "disabled>Difference") {
+		t.Fatal("compare mode buttons must be enabled")
+	}
+	for _, required := range []string{"blendControl", "setCompareMode", "updateModeControls"} {
+		if !strings.Contains(index+js, required) {
+			t.Fatalf("UI missing %s", required)
+		}
+	}
+	for _, required := range []string{".viewer.slider-mode", ".viewer.blend-mode", ".viewer.diff-mode", "grid-template-columns: minmax(0, 1fr)", "height: clamp(520px"} {
+		if !strings.Contains(css, required) {
+			t.Fatalf("CSS missing %s", required)
+		}
+	}
+}
+
+func TestEmbeddedUIUsesHideableOverlayControlsAndDraggableFrameSlider(t *testing.T) {
+	assets, err := fs.Sub(webFS, "web")
+	if err != nil {
+		t.Fatal(err)
+	}
+	indexBytes, err := fs.ReadFile(assets, "index.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cssBytes, err := fs.ReadFile(assets, "css/app.css")
+	if err != nil {
+		t.Fatal(err)
+	}
+	jsBytes, err := fs.ReadFile(assets, "js/app.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	index := string(indexBytes)
+	css := string(cssBytes)
+	js := string(jsBytes)
+
+	for _, required := range []string{"viewerControls", "toggleControlsBtn", "sliderHandle"} {
+		if !strings.Contains(index, required) {
+			t.Fatalf("index.html missing %s", required)
+		}
+	}
+	for _, required := range []string{".viewer-controls", ".viewer.controls-hidden .viewer-controls", ".slider-handle", "rgba(8, 14, 26, 0.58)"} {
+		if !strings.Contains(css, required) {
+			t.Fatalf("CSS missing %s", required)
+		}
+	}
+	for _, required := range []string{"setPointerCapture", "updateSplitFromPointer", "toggleControlsBtn", "controls-hidden"} {
+		if !strings.Contains(js, required) {
+			t.Fatalf("JS missing %s", required)
+		}
+	}
+}
+
+func TestHideShowButtonStaysOutsideHiddenOverlay(t *testing.T) {
+	assets, err := fs.Sub(webFS, "web")
+	if err != nil {
+		t.Fatal(err)
+	}
+	indexBytes, err := fs.ReadFile(assets, "index.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cssBytes, err := fs.ReadFile(assets, "css/app.css")
+	if err != nil {
+		t.Fatal(err)
+	}
+	index := string(indexBytes)
+	css := string(cssBytes)
+
+	modeTabs := strings.Index(index, `class="mode-tabs"`)
+	toggle := strings.Index(index, `id="toggleControlsBtn"`)
+	viewerControls := strings.Index(index, `id="viewerControls"`)
+	if modeTabs < 0 || toggle < 0 || viewerControls < 0 {
+		t.Fatalf("missing mode tabs, toggle, or viewer controls")
+	}
+	if !(modeTabs < toggle && toggle < viewerControls) {
+		t.Fatalf("hide/show button must live in top mode controls, before hidden overlay")
+	}
+	if strings.Contains(css, ".viewer.controls-hidden #toggleControlsBtn") {
+		t.Fatal("hide/show button must not be hidden with viewer overlay")
+	}
+	if !strings.Contains(css, ".top-toggle") {
+		t.Fatal("CSS missing top-toggle styling")
+	}
+}

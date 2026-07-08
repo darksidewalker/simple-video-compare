@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DaSiWa Simple Video Compare</title>
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">DaSiWa Tooling</p>
+        <h1>Simple Video Compare <span id="statusDot" class="status-dot"></span></h1>
+      </div>
+      <div class="mode-tabs" aria-label="Compare mode">
+        <button class="tab active" data-mode="side">Side by Side</button>
+        <button class="tab" data-mode="slider">Slider</button>
+        <button class="tab" data-mode="blend">Blend</button>
+        <button class="tab" data-mode="diff">Difference</button>
+        <button id="toggleControlsBtn" class="top-toggle" type="button" title="Hide controls">Hide controls</button>
+      </div>
+    </header>
+
+    <section class="setup-strip">
+      <div class="input-grid">
+        <article class="drop-card" id="dropA">
+          <span class="badge">VIDEO A</span>
+          <strong>Lokale Datei A</strong>
+          <input id="pathA" placeholder="Drop file here or paste label/path for notes">
+          <button type="button" id="browseA" class="secondary">Browse local files</button>
+        </article>
+        <article class="drop-card" id="dropB">
+          <span class="badge accent">VIDEO B</span>
+          <strong>Lokale Datei B</strong>
+          <input id="pathB" placeholder="Drop file here or paste label/path for notes">
+          <button type="button" id="browseB" class="secondary">Browse local files</button>
+        </article>
+      </div>
+      <div class="runtime-card">
+        <strong>Runtime</strong>
+        <span id="runtimeLabel">checking...</span>
+      </div>
+    </section>
+
+    <section class="viewer side-mode" id="viewer">
+      <div class="video-panel panel-a">
+        <div class="panel-head"><span>A</span><strong id="nameA">No video loaded</strong></div>
+        <video id="videoA" playsinline preload="auto"></video>
+      </div>
+      <div class="video-panel panel-b">
+        <div class="panel-head"><span>B</span><strong id="nameB">No video loaded</strong></div>
+        <video id="videoB" playsinline muted preload="auto"></video>
+      </div>
+      <button id="sliderHandle" class="slider-handle" type="button" aria-label="Move comparison split"></button>
+      <section class="controls viewer-controls" id="viewerControls">
+        <button id="playBtn" class="primary">Play</button>
+        <button id="syncBtn">Sync Now</button>
+        <label class="range-wrap">Seek <input id="seek" type="range" min="0" max="1000" value="0"></label>
+        <label id="blendControl" class="range-wrap mode-control" hidden>Blend <input id="blendRange" type="range" min="0" max="100" value="50"></label>
+        <span id="timeLabel">00:00.000 / 00:00.000</span>
+        <label>Audio
+          <select id="audioMode">
+            <option value="a">A</option>
+            <option value="b">B</option>
+            <option value="mute">Mute</option>
+          </select>
+        </label>
+      </section>
+    </section>
+
+    <footer class="note">Phase 5: transparente, ausblendbare In-Frame-Controls; Slider direkt im Videobild ziehbar.</footer>
+
+    <dialog id="fileBrowserDialog" class="file-dialog">
+      <div class="panel-head"><span>LOCAL</span><strong>Datei auswählen</strong><button type="button" id="fileBrowserClose">✕</button></div>
+      <div class="browser-toolbar">
+        <button type="button" id="fileBrowserUp">Up</button>
+        <code id="fileBrowserPath">/</code>
+      </div>
+      <div id="fileBrowserList" class="file-list"></div>
+    </dialog>
+  </main>
+  <script src="/js/api.js"></script>
+  <script src="/js/dropzone.js"></script>
+  <script src="/js/filebrowser.js"></script>
+  <script src="/js/compare.js"></script>
+  <script src="/js/app.js"></script>
+</body>
+</html>
