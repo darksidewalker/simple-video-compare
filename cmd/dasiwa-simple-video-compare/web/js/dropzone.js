@@ -25,5 +25,6 @@ function loadDroppedVideo(file, input, video) {
   video.preload = 'auto';
   video.dataset.objectUrl = url;
   input.value = file.name;
+  input.dispatchEvent(new Event('input', { bubbles: true }));
   video.load();
 }

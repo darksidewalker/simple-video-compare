@@ -14,8 +14,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const videoDetailsBtn = document.getElementById('videoDetailsBtn');
   const pathA = document.getElementById('pathA');
   const pathB = document.getElementById('pathB');
-  let detailsVisible = false;
-  let cachedProbes = {};
+  const videoDetailsState = window.videoDetailsState = { detailsVisible: false, cachedProbes: {} };
 
   // Wire drop zones — show details button when at least one video is loaded
   function checkAnyLoaded() {
@@ -23,7 +22,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const hasB = pathB.value.length > 0;
     if (hasA || hasB) videoDetailsBtn.style.display = '';
     else videoDetailsBtn.style.display = 'none';
-    if (hasA && hasB && !detailsVisible) loadAllProbes();
+    if (hasA && hasB && !videoDetailsState.detailsVisible) loadAllProbes();
   }
   wireDropZone(document.getElementById('dropA'), document.getElementById('pathA'), videoA);
   wireDropZone(document.getElementById('dropB'), document.getElementById('pathB'), videoB);
@@ -65,7 +64,11 @@ document.addEventListener('DOMContentLoaded', () => {
     toggleControlsBtn.title = hidden ? 'Show controls' : 'Hide controls';
   });
   videoDetailsBtn.addEventListener('click', () => {
-    if (detailsVisible) hideVideoDetails(); else showVideoDetails();
+    if (videoDetailsState.detailsVisible) {
+      hideVideoDetails();
+    } else {
+      showVideoDetails();
+    }
   });
 
   // Status dialog
@@ -188,9 +191,10 @@ async function loadAllProbes() {
       api.post('/api/video/probe', { path: pA }),
       api.post('/api/video/probe', { path: pB }),
     ]);
-    if (rA && !rA.error) cachedProbes.A = rA;
-    if (rB && !rB.error) cachedProbes.B = rB;
-    if (detailsVisible) renderAllDetails();
+    const state = window.videoDetailsState;
+    if (rA && !rA.error) state.cachedProbes.A = rA;
+    if (rB && !rB.error) state.cachedProbes.B = rB;
+    if (state.detailsVisible) renderAllDetails();
   } catch (e) {
     console.warn('Video probe failed:', e);
   }
@@ -306,7 +310,10 @@ function detailRow(label, value) {
 }
 
 function showVideoDetails() {
-  detailsVisible = true;
+  const state = window.videoDetailsState;
+  const viewer = document.getElementById('viewer');
+  const videoDetailsBtn = document.getElementById('videoDetailsBtn');
+  state.detailsVisible = true;
   viewer.classList.add('details-visible');
   const overlay = document.getElementById('detailsOverlay');
   overlay.hidden = false;
@@ -316,7 +323,10 @@ function showVideoDetails() {
 }
 
 function hideVideoDetails() {
-  detailsVisible = false;
+  const state = window.videoDetailsState;
+  const viewer = document.getElementById('viewer');
+  const videoDetailsBtn = document.getElementById('videoDetailsBtn');
+  state.detailsVisible = false;
   viewer.classList.remove('details-visible');
   const overlay = document.getElementById('detailsOverlay');
   overlay.hidden = true;
@@ -325,6 +335,7 @@ function hideVideoDetails() {
 }
 
 function renderAllDetails() {
+  const cachedProbes = window.videoDetailsState.cachedProbes;
   if (cachedProbes.A) renderDetailPanel('A', cachedProbes.A);
   if (cachedProbes.B) renderDetailPanel('B', cachedProbes.B);
 }

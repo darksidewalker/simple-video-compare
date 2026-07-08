@@ -117,3 +117,37 @@ func TestHideShowButtonStaysOutsideHiddenOverlay(t *testing.T) {
 		t.Fatal("CSS missing top-toggle styling")
 	}
 }
+
+func TestVideoDetailsButtonUpdatesAfterProgrammaticLoad(t *testing.T) {
+	assets, err := fs.Sub(webFS, "web")
+	if err != nil {
+		t.Fatal(err)
+	}
+	appBytes, err := fs.ReadFile(assets, "js/app.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	dropBytes, err := fs.ReadFile(assets, "js/dropzone.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	browserBytes, err := fs.ReadFile(assets, "js/filebrowser.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	app := string(appBytes)
+	drop := string(dropBytes)
+	browser := string(browserBytes)
+
+	if !strings.Contains(app, "window.videoDetailsState") {
+		t.Fatal("video details state must be available to global detail handlers")
+	}
+	if strings.Contains(app, "console.log('Click handler called") {
+		t.Fatal("video details click handler must not contain debug console logs")
+	}
+	for name, js := range map[string]string{"dropzone.js": drop, "filebrowser.js": browser} {
+		if !strings.Contains(js, "dispatchEvent(new Event('input', { bubbles: true }))") {
+			t.Fatalf("%s must dispatch input after setting path programmatically", name)
+		}
+	}
+}

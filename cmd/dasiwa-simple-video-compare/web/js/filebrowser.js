@@ -47,6 +47,7 @@ function createLocalBrowser(options) {
     const video = document.getElementById(target.videoId);
     const input = document.getElementById(target.inputId);
     input.value = media.path;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
     video.src = media.url;
     video.preload = 'auto';
     video.removeAttribute('data-object-url');
