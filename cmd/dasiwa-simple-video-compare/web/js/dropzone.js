@@ -1,4 +1,4 @@
-function wireDropZone(card, input, video, nameEl) {
+function wireDropZone(card, input, video, _nameEl) {
   const setHover = active => card.classList.toggle('dragging', active);
 
   card.addEventListener('dragover', event => {
@@ -13,11 +13,11 @@ function wireDropZone(card, input, video, nameEl) {
     setHover(false);
     const file = event.dataTransfer.files[0];
     if (!file) return;
-    loadDroppedVideo(file, input, video, nameEl);
+    loadDroppedVideo(file, input, video);
   });
 }
 
-function loadDroppedVideo(file, input, video, nameEl) {
+function loadDroppedVideo(file, input, video) {
   const oldUrl = video.dataset.objectUrl;
   if (oldUrl) URL.revokeObjectURL(oldUrl);
   const url = URL.createObjectURL(file);
@@ -25,6 +25,5 @@ function loadDroppedVideo(file, input, video, nameEl) {
   video.preload = 'auto';
   video.dataset.objectUrl = url;
   input.value = file.name;
-  nameEl.textContent = file.name;
   video.load();
 }

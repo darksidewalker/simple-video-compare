@@ -9,9 +9,21 @@
 <body>
   <main class="shell">
     <header class="topbar">
-      <div>
+      <div class="topbar-left">
         <p class="eyebrow">DaSiWa Tooling</p>
-        <h1>Simple Video Compare <span id="statusDot" class="status-dot"></span></h1>
+        <h1>Simple Video Compare</h1>
+        <div class="compact-drops">
+          <article class="drop-compact" id="dropA">
+            <span class="badge">A</span>
+            <input id="pathA" placeholder="Drop file or paste path">
+            <button type="button" id="browseA" class="secondary mini">Browse</button>
+          </article>
+          <article class="drop-compact" id="dropB">
+            <span class="badge accent">B</span>
+            <input id="pathB" placeholder="Drop file or paste path">
+            <button type="button" id="browseB" class="secondary mini">Browse</button>
+          </article>
+        </div>
       </div>
       <div class="mode-tabs" aria-label="Compare mode">
         <button class="tab active" data-mode="side">Side by Side</button>
@@ -20,36 +32,24 @@
         <button class="tab" data-mode="diff">Difference</button>
         <button id="toggleControlsBtn" class="top-toggle" type="button" title="Hide controls">Hide controls</button>
       </div>
+      <button id="statusBtn" type="button" class="status-btn" title="System status">
+        <span id="statusDot" class="status-dot"></span>
+      </button>
     </header>
 
-    <section class="setup-strip">
-      <div class="input-grid">
-        <article class="drop-card" id="dropA">
-          <span class="badge">VIDEO A</span>
-          <strong>Lokale Datei A</strong>
-          <input id="pathA" placeholder="Drop file here or paste label/path for notes">
-          <button type="button" id="browseA" class="secondary">Browse local files</button>
-        </article>
-        <article class="drop-card" id="dropB">
-          <span class="badge accent">VIDEO B</span>
-          <strong>Lokale Datei B</strong>
-          <input id="pathB" placeholder="Drop file here or paste label/path for notes">
-          <button type="button" id="browseB" class="secondary">Browse local files</button>
-        </article>
+    <dialog id="runtimeDialog" class="runtime-dialog">
+      <div class="runtime-dialog-body">
+        <h3>System Status</h3>
+        <div id="runtimeSummary"></div>
+        <button id="closeRuntime" type="button">Close</button>
       </div>
-      <div class="runtime-card">
-        <strong>Runtime</strong>
-        <span id="runtimeLabel">checking...</span>
-      </div>
-    </section>
+    </dialog>
 
     <section class="viewer side-mode" id="viewer">
       <div class="video-panel panel-a">
-        <div class="panel-head"><span>A</span><strong id="nameA">No video loaded</strong></div>
         <video id="videoA" playsinline preload="auto"></video>
       </div>
       <div class="video-panel panel-b">
-        <div class="panel-head"><span>B</span><strong id="nameB">No video loaded</strong></div>
         <video id="videoB" playsinline muted preload="auto"></video>
       </div>
       <button id="sliderHandle" class="slider-handle" type="button" aria-label="Move comparison split"></button>

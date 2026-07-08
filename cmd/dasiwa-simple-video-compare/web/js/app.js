@@ -12,10 +12,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const blendControl = document.getElementById('blendControl');
   const toggleControlsBtn = document.getElementById('toggleControlsBtn');
 
-  wireDropZone(document.getElementById('dropA'), document.getElementById('pathA'), videoA, document.getElementById('nameA'));
-  wireDropZone(document.getElementById('dropB'), document.getElementById('pathB'), videoB, document.getElementById('nameB'));
-  document.getElementById('browseA').addEventListener('click', () => localBrowser.open({ videoId: 'videoA', inputId: 'pathA', nameId: 'nameA' }));
-  document.getElementById('browseB').addEventListener('click', () => localBrowser.open({ videoId: 'videoB', inputId: 'pathB', nameId: 'nameB' }));
+  wireDropZone(document.getElementById('dropA'), document.getElementById('pathA'), videoA);
+  wireDropZone(document.getElementById('dropB'), document.getElementById('pathB'), videoB);
+  document.getElementById('browseA').addEventListener('click', () => localBrowser.open({ videoId: 'videoA', inputId: 'pathA' }));
+  document.getElementById('browseB').addEventListener('click', () => localBrowser.open({ videoId: 'videoB', inputId: 'pathB' }));
 
   playBtn.addEventListener('click', () => {
     playBtn.textContent = compare.playPause() ? 'Pause' : 'Play';
@@ -50,6 +50,11 @@ document.addEventListener('DOMContentLoaded', () => {
     toggleControlsBtn.title = hidden ? 'Show controls' : 'Hide controls';
   });
 
+  document.getElementById('statusBtn').addEventListener('click', openRuntimeDialog);
+  document.getElementById('closeRuntime').addEventListener('click', () => {
+    document.getElementById('runtimeDialog').close();
+  });
+
   seek.addEventListener('input', () => {
     compare.isSeeking = true;
     compare.seekRatio(seek.value, seek.max);
@@ -71,7 +76,6 @@ document.addEventListener('DOMContentLoaded', () => {
   }, 500);
 
   pingServer();
-  loadRuntime();
   setCompareMode('side');
   setInterval(pingServer, 30000);
 
@@ -118,13 +122,21 @@ async function pingServer() {
   }
 }
 
-async function loadRuntime() {
-  const label = document.getElementById('runtimeLabel');
+async function openRuntimeDialog() {
+  const dialog = document.getElementById('runtimeDialog');
+  const summary = document.getElementById('runtimeSummary');
+  summary.innerHTML = '<small>Loading…</small>';
+  dialog.showModal();
   try {
     const runtime = await api.get('/api/runtime');
     const ffmpeg = runtime.tools && runtime.tools.ready ? 'FFmpeg ready' : 'FFmpeg missing';
-    label.textContent = `${runtime.ux_mode} · ${ffmpeg} · root ${runtime.root_dir}`;
+    summary.innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:6px;color:var(--muted);font-size:13px;">
+        <div><strong style="color:var(--text)">UX Mode:</strong> ${runtime.ux_mode || '—'}</div>
+        <div><strong style="color:var(--text)">FFmpeg:</strong> ${ffmpeg}</div>
+        <div><strong style="color:var(--text)">Root Dir:</strong> <code style="color:var(--amber);font-size:12px">${runtime.root_dir || '—'}</code></div>
+      </div>`;
   } catch {
-    label.textContent = 'runtime unavailable';
+    summary.innerHTML = '<small style="color:var(--red)">Runtime unavailable</small>';
   }
 }

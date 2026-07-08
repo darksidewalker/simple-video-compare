@@ -46,25 +46,12 @@ function createLocalBrowser(options) {
     const media = await api.post('/api/media/register', { path: item.path });
     const video = document.getElementById(target.videoId);
     const input = document.getElementById(target.inputId);
-    const name = document.getElementById(target.nameId);
     input.value = media.path;
-    name.textContent = media.name;
     video.src = media.url;
     video.preload = 'auto';
     video.removeAttribute('data-object-url');
     video.load();
-    cacheMedia(media, name);
     dialog.close();
-  }
-
-  async function cacheMedia(media, name) {
-    name.textContent = media.name + ' · caching RAM...';
-    try {
-      const cached = await api.post('/api/media/cache', { id: media.id });
-      name.textContent = `${cached.name} · RAM cached ${formatBytes(cached.cache_bytes)}`;
-    } catch (err) {
-      name.textContent = media.name + ' · streaming from disk';
-    }
   }
 
   function formatBytes(bytes) {
