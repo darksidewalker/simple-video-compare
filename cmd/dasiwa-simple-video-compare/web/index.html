@@ -29,6 +29,7 @@
           <button class="tab" data-mode="blend">Blend</button>
           <button class="tab" data-mode="diff">Diff</button>
           <button id="toggleControlsBtn" class="top-toggle" type="button" title="Hide controls">⚙ Hide</button>
+          <button id="videoDetailsBtn" class="top-toggle" type="button" title="Show video details" style="display:none;">📋 Details</button>
         </div>
       </div>
       <div class="topbar-actions">
@@ -56,6 +57,10 @@
         <video id="videoB" playsinline muted preload="auto"></video>
       </div>
       <button id="sliderHandle" class="slider-handle" type="button" aria-label="Move comparison split"></button>
+      <div class="video-details-overlay" id="detailsOverlay" hidden>
+        <div class="detail-panel left" id="detailPanelA"></div>
+        <div class="detail-panel right" id="detailPanelB"></div>
+      </div>
       <section class="controls viewer-controls" id="viewerControls">
         <button id="playBtn" class="primary">Play</button>
         <button id="syncBtn">Sync Now</button>

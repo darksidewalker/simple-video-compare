@@ -11,9 +11,21 @@ document.addEventListener('DOMContentLoaded', () => {
   const blendRange = document.getElementById('blendRange');
   const blendControl = document.getElementById('blendControl');
   const toggleControlsBtn = document.getElementById('toggleControlsBtn');
+  const videoDetailsBtn = document.getElementById('videoDetailsBtn');
+  let detailsVisible = false;
+  let cachedProbes = {};
 
+  // Wire drop zones — show details button when both have paths
+  function checkBothLoaded() {
+    const hasA = pathA.value.length > 0;
+    const hasB = pathB.value.length > 0;
+    if (hasA || hasB) videoDetailsBtn.style.display = '';
+    if (hasA && hasB && !detailsVisible) loadAllProbes();
+  }
   wireDropZone(document.getElementById('dropA'), document.getElementById('pathA'), videoA);
   wireDropZone(document.getElementById('dropB'), document.getElementById('pathB'), videoB);
+  pathA.addEventListener('input', checkBothLoaded);
+  pathB.addEventListener('input', checkBothLoaded);
   document.getElementById('browseA').addEventListener('click', () => localBrowser.open({ videoId: 'videoA', inputId: 'pathA' }));
   document.getElementById('browseB').addEventListener('click', () => localBrowser.open({ videoId: 'videoB', inputId: 'pathB' }));
 
@@ -48,6 +60,9 @@ document.addEventListener('DOMContentLoaded', () => {
     toggleControlsBtn.classList.toggle('active', hidden);
     toggleControlsBtn.textContent = hidden ? 'Show controls' : 'Hide controls';
     toggleControlsBtn.title = hidden ? 'Show controls' : 'Hide controls';
+  });
+  videoDetailsBtn.addEventListener('click', () => {
+    if (detailsVisible) hideVideoDetails(); else showVideoDetails();
   });
 
   // Status dialog
@@ -153,4 +168,154 @@ async function openRuntimeDialog() {
   } catch {
     summary.innerHTML = '<small style="color:var(--red)">Runtime unavailable</small>';
   }
+}
+
+async function loadAllProbes() {
+  const pA = document.getElementById('pathA').value.trim();
+  const pB = document.getElementById('pathB').value.trim();
+  if (!pA || !pB) return;
+  try {
+    const [rA, rB] = await Promise.all([
+      api.post('/api/video/probe', { path: pA }),
+      api.post('/api/video/probe', { path: pB }),
+    ]);
+    if (rA && !rA.error) cachedProbes.A = rA;
+    if (rB && !rB.error) cachedProbes.B = rB;
+    if (detailsVisible) renderAllDetails();
+  } catch (e) {
+    console.warn('Video probe failed:', e);
+  }
+}
+
+function formatDuration(sec) {
+  if (!sec || sec <= 0) return '—';
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = Math.round(sec % 60);
+  const parts = [];
+  if (h > 0) parts.push(h + 'h');
+  if (m > 0) parts.push(m + 'm');
+  parts.push(s + 's');
+  return parts.join(' ');
+}
+
+function formatBitrate(bps) {
+  if (!bps || bps <= 0) return '—';
+  if (bps >= 1e6) return (bps / 1e6).toFixed(2) + ' Mbps';
+  if (bps >= 1e3) return (bps / 1e3).toFixed(0) + ' Kbps';
+  return bps + ' bps';
+}
+
+function formatSize(bytes) {
+  if (!bytes || bytes <= 0) return '—';
+  if (bytes >= 1e9) return (bytes / 1e9).toFixed(2) + ' GB';
+  if (bytes >= 1e6) return (bytes / 1e6).toFixed(1) + ' MB';
+  if (bytes >= 1e3) return (bytes / 1e3).toFixed(0) + ' KB';
+  return bytes + ' B';
+}
+
+function parseFPS(str) {
+  if (!str) return null;
+  if (str.includes('/')) {
+    const [n, d] = str.split('/').map(Number);
+    if (d && n) return (n / d).toFixed(3);
+  }
+  const v = parseFloat(str);
+  return isNaN(v) ? null : v.toFixed(3);
+}
+
+function streamLabel(s) {
+  if (s.codecType === 'video') return 'Video Stream #' + s.index;
+  if (s.codecType === 'audio') return 'Audio Stream #' + s.index;
+  return 'Stream #' + s.index + ' (' + (s.codecType || 'unknown') + ')';
+}
+
+function renderDetailPanel(key, data) {
+  const container = document.getElementById('detailPanel' + key);
+  if (!container || !data) {
+    container.innerHTML = '<div class="detail-section"><span style="color:var(--muted)">No data</span></div>';
+    return;
+  }
+  const f = data.format || {};
+  const streams = data.streams || [];
+  const videoStreams = streams.filter(s => s.codecType === 'video');
+  const audioStreams = streams.filter(s => s.codecType === 'audio');
+
+  let html = '';
+
+  // Header
+  html += `<div class="detail-header">`;
+  html += `<span class="badge">${key}</span>`;
+  html += `<strong>${f.filename || 'Unknown'}</strong>`;
+  html += `</div>`;
+
+  // Format section
+  html += `<div class="detail-section"><div class="detail-section-title">Format</div>`;
+  html += detailRow('Duration', formatDuration(f.duration));
+  html += detailRow('File size', formatSize(f.size));
+  html += detailRow('Bit rate', formatBitrate(f.bitRate));
+  html += `</div>`;
+
+  // Video streams
+  if (videoStreams.length > 0) {
+    videoStreams.forEach(vs => {
+      html += `<div class="detail-section">`;
+      html += `<div class="detail-stream-type video">Video</div>`;
+      html += detailRow('Codec', vs.codecName || '—');
+      html += detailRow('Profile', vs.profile || '—');
+      html += detailRow('Resolution', vs.width && vs.height ? vs.width + '×' + vs.height : '—');
+      const fps = parseFPS(vs.rFrameRate);
+      html += detailRow('Frame rate', fps ? fps + ' fps' : '—');
+      html += detailRow('Bit rate', formatBitrate(vs.bitRate));
+      html += detailRow('Color space', vs.colorSpace || '—');
+      html += detailRow('Color range', vs.colorRange || '—');
+      html += detailRow('Primaries', vs.colorPrimaries || '—');
+      html += detailRow('Transfer', vs.colorTransfer || '—');
+      html += `</div>`;
+    });
+  }
+
+  // Audio streams
+  if (audioStreams.length > 0) {
+    audioStreams.forEach(as => {
+      html += `<div class="detail-section">`;
+      html += `<div class="detail-stream-type audio">Audio</div>`;
+      html += detailRow('Codec', as.codecName || '—');
+      html += detailRow('Channels', as.channels || '—');
+      html += detailRow('Sample rate', as.sampleRate ? as.sampleRate + ' Hz' : '—');
+      html += detailRow('Bit rate', formatBitrate(as.bitRate));
+      html += `</div>`;
+    });
+  }
+
+  container.innerHTML = html;
+}
+
+function detailRow(label, value) {
+  const cls = typeof value === 'string' && /^[a-z0-9]+$/i.test(value.replace(/\s/g, '')) ? ' detail-value code' : ' detail-value';
+  return `<div class="detail-row"><span class="detail-label">${label}</span><span class="${cls}">${value || '—'}</span></div>`;
+}
+
+function showVideoDetails() {
+  detailsVisible = true;
+  viewer.classList.add('details-visible');
+  const overlay = document.getElementById('detailsOverlay');
+  overlay.hidden = false;
+  videoDetailsBtn.textContent = '✕ Close';
+  videoDetailsBtn.title = 'Close video details';
+  renderAllDetails();
+}
+
+function hideVideoDetails() {
+  detailsVisible = false;
+  viewer.classList.remove('details-visible');
+  const overlay = document.getElementById('detailsOverlay');
+  overlay.hidden = true;
+  videoDetailsBtn.textContent = '📋 Details';
+  videoDetailsBtn.title = 'Show video details';
+}
+
+function renderAllDetails() {
+  if (cachedProbes.A) renderDetailPanel('A', cachedProbes.A);
+  if (cachedProbes.B) renderDetailPanel('B', cachedProbes.B);
 }
