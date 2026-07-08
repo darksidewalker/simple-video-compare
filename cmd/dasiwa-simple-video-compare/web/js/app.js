@@ -50,9 +50,24 @@ document.addEventListener('DOMContentLoaded', () => {
     toggleControlsBtn.title = hidden ? 'Show controls' : 'Hide controls';
   });
 
+  // Status dialog
   document.getElementById('statusBtn').addEventListener('click', openRuntimeDialog);
   document.getElementById('closeRuntime').addEventListener('click', () => {
     document.getElementById('runtimeDialog').close();
+  });
+
+  // Quit button
+  document.getElementById('quitBtn').addEventListener('click', () => {
+    fetch('/api/shutdown', { method: 'POST' })
+      .then(r => r.text())
+      .then(msg => {
+        console.log('Shutting down:', msg);
+        setTimeout(() => window.close(), 2000);
+      })
+      .catch(err => {
+        console.error('Shutdown failed:', err);
+        alert('Failed to shut down. Please close manually.');
+      });
   });
 
   seek.addEventListener('input', () => {
