@@ -56,17 +56,32 @@ function createLocalBrowser(options) {
     video.load();
     dialog.close();
 
-    // Auto-cache: fire-and-forget, with visual feedback
-    if (media.id && !media.cached) {
+    // Auto-cache only after the browser has opened the stream, so registration
+    // never competes with the first video paint/load.
+    scheduleCache(media, video, cacheDot);
+  }
+
+  function scheduleCache(media, video, cacheDot) {
+    if (media && media.cached) {
+      setCacheState(cacheDot, 'cached', 'Cached (' + formatBytes(media.cache_bytes) + ')');
+      return;
+    }
+    if (!media || !media.id) return;
+
+    const start = () => {
       setCacheState(cacheDot, 'caching', 'Caching…');
       api.post('/api/media/cache', { id: media.id })
         .then((updated) => {
           if (updated && updated.cached) setCacheState(cacheDot, 'cached', 'Cached (' + formatBytes(updated.cache_bytes) + ')');
         })
         .catch(() => setCacheState(cacheDot, '', ''));
-    } else if (media && media.cached) {
-      setCacheState(cacheDot, 'cached', 'Cached (' + formatBytes(media.cache_bytes) + ')');
+    };
+
+    if (video.readyState >= HTMLMediaElement.HAVE_METADATA) {
+      start();
+      return;
     }
+    video.addEventListener('loadedmetadata', start, { once: true });
   }
 
   function setCacheState(el, state, title) {

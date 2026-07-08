@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -39,7 +40,7 @@ func (s *Server) handleRegisterMedia(w http.ResponseWriter, r *http.Request) {
 	}
 
 	entry := MediaEntry{ID: mediaID(path), Name: filepath.Base(path), Path: path}
-	entry.URL = "/media/" + entry.ID + "/" + entry.Name
+	entry.URL = "/media/" + entry.ID + "/" + url.PathEscape(entry.Name)
 	s.mu.Lock()
 	s.media[entry.ID] = entry
 	s.mu.Unlock()

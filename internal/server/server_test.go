@@ -55,7 +55,7 @@ func TestBrowseFilesReturnsLocalVideoFiles(t *testing.T) {
 
 func TestRegisterMediaReturnsPlayableLocalURL(t *testing.T) {
 	dir := t.TempDir()
-	videoPath := filepath.Join(dir, "clip.mkv")
+	videoPath := filepath.Join(dir, "clip #1 + final.mkv")
 	mustWrite(t, videoPath, "video")
 	handler := NewWithConfig(testAssets(), "test", Config{RootDir: dir, Tools: media.Tools{}})
 	data, err := json.Marshal(map[string]string{"path": videoPath})
@@ -79,6 +79,9 @@ func TestRegisterMediaReturnsPlayableLocalURL(t *testing.T) {
 	}
 	if got.URL == "" {
 		t.Fatal("empty media url")
+	}
+	if !strings.Contains(got.URL, "clip%20%231%20+%20final.mkv") {
+		t.Fatalf("media url must path-escape filename, got %q", got.URL)
 	}
 }
 
