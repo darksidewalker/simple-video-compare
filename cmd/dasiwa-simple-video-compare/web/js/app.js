@@ -185,18 +185,35 @@ async function openRuntimeDialog() {
 async function loadAllProbes() {
   const pA = document.getElementById('pathA').value.trim();
   const pB = document.getElementById('pathB').value.trim();
-  if (!pA || !pB) return;
+  if (!pA && !pB) return;
+
+  const state = window.videoDetailsState;
+  const requests = [];
+  if (pA) {
+    state.cachedProbes.A = { loading: true, path: pA };
+    requests.push(probeVideo('A', pA));
+  }
+  else delete state.cachedProbes.A;
+  if (pB) {
+    state.cachedProbes.B = { loading: true, path: pB };
+    requests.push(probeVideo('B', pB));
+  }
+  else delete state.cachedProbes.B;
+
+  if (state.detailsVisible) renderAllDetails();
+
+  const results = await Promise.all(requests);
+  results.forEach(result => { state.cachedProbes[result.key] = result.data; });
+  if (state.detailsVisible) renderAllDetails();
+}
+
+async function probeVideo(key, path) {
   try {
-    const [rA, rB] = await Promise.all([
-      api.post('/api/video/probe', { path: pA }),
-      api.post('/api/video/probe', { path: pB }),
-    ]);
-    const state = window.videoDetailsState;
-    if (rA && !rA.error) state.cachedProbes.A = rA;
-    if (rB && !rB.error) state.cachedProbes.B = rB;
-    if (state.detailsVisible) renderAllDetails();
+    const data = await api.post('/api/video/probe', { path });
+    return { key, data };
   } catch (e) {
     console.warn('Video probe failed:', e);
+    return { key, data: { error: String(e && e.message ? e.message : e), path } };
   }
 }
 
@@ -238,21 +255,37 @@ function parseFPS(str) {
 }
 
 function streamLabel(s) {
-  if (s.codecType === 'video') return 'Video Stream #' + s.index;
-  if (s.codecType === 'audio') return 'Audio Stream #' + s.index;
+  if (field(s, 'codecType', 'codec_type') === 'video') return 'Video Stream #' + s.index;
+  if (field(s, 'codecType', 'codec_type') === 'audio') return 'Audio Stream #' + s.index;
   return 'Stream #' + s.index + ' (' + (s.codecType || 'unknown') + ')';
+}
+
+function field(obj, camelName, snakeName) {
+  if (!obj) return undefined;
+  return obj[camelName] !== undefined ? obj[camelName] : obj[snakeName];
 }
 
 function renderDetailPanel(key, data) {
   const container = document.getElementById('detailPanel' + key);
-  if (!container || !data) {
+  if (!container) return;
+  if (!data) {
     container.innerHTML = '<div class="detail-section"><span style="color:var(--muted)">No data</span></div>';
+    return;
+  }
+  if (data.loading) {
+    container.innerHTML = '<div class="detail-section"><span style="color:var(--muted)">Loading details…</span></div>';
+    return;
+  }
+  if (data.error) {
+    const basenameOnly = data.path && !data.path.includes('/') && !data.path.includes('\\');
+    const hint = basenameOnly ? '<div class="detail-section"><span style="color:var(--muted)">Dropped files may expose only the filename. Use Browse or paste the full absolute path for ffprobe details.</span></div>' : '';
+    container.innerHTML = `<div class="detail-header"><span class="badge">${key}</span><strong>Probe failed</strong></div><div class="detail-section"><span style="color:var(--red)">${escapeHTML(data.error)}</span></div>${hint}`;
     return;
   }
   const f = data.format || {};
   const streams = data.streams || [];
-  const videoStreams = streams.filter(s => s.codecType === 'video');
-  const audioStreams = streams.filter(s => s.codecType === 'audio');
+  const videoStreams = streams.filter(s => field(s, 'codecType', 'codec_type') === 'video');
+  const audioStreams = streams.filter(s => field(s, 'codecType', 'codec_type') === 'audio');
 
   let html = '';
 
@@ -266,7 +299,7 @@ function renderDetailPanel(key, data) {
   html += `<div class="detail-section"><div class="detail-section-title">Format</div>`;
   html += detailRow('Duration', formatDuration(f.duration));
   html += detailRow('File size', formatSize(f.size));
-  html += detailRow('Bit rate', formatBitrate(f.bitRate));
+  html += detailRow('Bit rate', formatBitrate(field(f, 'bitRate', 'bit_rate')));
   html += `</div>`;
 
   // Video streams
@@ -274,16 +307,16 @@ function renderDetailPanel(key, data) {
     videoStreams.forEach(vs => {
       html += `<div class="detail-section">`;
       html += `<div class="detail-stream-type video">Video</div>`;
-      html += detailRow('Codec', vs.codecName || '—');
+      html += detailRow('Codec', field(vs, 'codecName', 'codec_name') || '—');
       html += detailRow('Profile', vs.profile || '—');
       html += detailRow('Resolution', vs.width && vs.height ? vs.width + '×' + vs.height : '—');
-      const fps = parseFPS(vs.rFrameRate);
+      const fps = parseFPS(field(vs, 'rFrameRate', 'r_frame_rate'));
       html += detailRow('Frame rate', fps ? fps + ' fps' : '—');
-      html += detailRow('Bit rate', formatBitrate(vs.bitRate));
-      html += detailRow('Color space', vs.colorSpace || '—');
-      html += detailRow('Color range', vs.colorRange || '—');
-      html += detailRow('Primaries', vs.colorPrimaries || '—');
-      html += detailRow('Transfer', vs.colorTransfer || '—');
+      html += detailRow('Bit rate', formatBitrate(field(vs, 'bitRate', 'bit_rate')));
+      html += detailRow('Color space', field(vs, 'colorSpace', 'color_space') || '—');
+      html += detailRow('Color range', field(vs, 'colorRange', 'color_range') || '—');
+      html += detailRow('Primaries', field(vs, 'colorPrimaries', 'color_primaries') || '—');
+      html += detailRow('Transfer', field(vs, 'colorTransfer', 'color_transfer') || '—');
       html += `</div>`;
     });
   }
@@ -293,10 +326,11 @@ function renderDetailPanel(key, data) {
     audioStreams.forEach(as => {
       html += `<div class="detail-section">`;
       html += `<div class="detail-stream-type audio">Audio</div>`;
-      html += detailRow('Codec', as.codecName || '—');
+      html += detailRow('Codec', field(as, 'codecName', 'codec_name') || '—');
       html += detailRow('Channels', as.channels || '—');
-      html += detailRow('Sample rate', as.sampleRate ? as.sampleRate + ' Hz' : '—');
-      html += detailRow('Bit rate', formatBitrate(as.bitRate));
+      const sampleRate = field(as, 'sampleRate', 'sample_rate');
+      html += detailRow('Sample rate', sampleRate ? sampleRate + ' Hz' : '—');
+      html += detailRow('Bit rate', formatBitrate(field(as, 'bitRate', 'bit_rate')));
       html += `</div>`;
     });
   }
@@ -307,6 +341,10 @@ function renderDetailPanel(key, data) {
 function detailRow(label, value) {
   const cls = typeof value === 'string' && /^[a-z0-9]+$/i.test(value.replace(/\s/g, '')) ? ' detail-value code' : ' detail-value';
   return `<div class="detail-row"><span class="detail-label">${label}</span><span class="${cls}">${value || '—'}</span></div>`;
+}
+
+function escapeHTML(value) {
+  return String(value).replace(/[&<>"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[char]));
 }
 
 function showVideoDetails() {
@@ -320,6 +358,7 @@ function showVideoDetails() {
   videoDetailsBtn.textContent = '✕ Close';
   videoDetailsBtn.title = 'Close video details';
   renderAllDetails();
+  loadAllProbes();
 }
 
 function hideVideoDetails() {
@@ -336,6 +375,6 @@ function hideVideoDetails() {
 
 function renderAllDetails() {
   const cachedProbes = window.videoDetailsState.cachedProbes;
-  if (cachedProbes.A) renderDetailPanel('A', cachedProbes.A);
-  if (cachedProbes.B) renderDetailPanel('B', cachedProbes.B);
+  renderDetailPanel('A', cachedProbes.A);
+  renderDetailPanel('B', cachedProbes.B);
 }

@@ -317,9 +317,11 @@ video { display: block; width: 100%; height: clamp(520px, calc(100vh - 208px), 1
   position: absolute;
   inset: 0;
   z-index: 20;
+  display: flex;
   pointer-events: none;
   gap: 0;
 }
+.video-details-overlay[hidden] { display: none; }
 .video-details-overlay::after {
   content: "";
   position: absolute;
@@ -330,6 +332,7 @@ video { display: block; width: 100%; height: clamp(520px, calc(100vh - 208px), 1
 .detail-panel {
   position: relative;
   z-index: 1;
+  flex: 1 1 50%;
   pointer-events: auto;
   padding: 10px 12px;
   overflow-y: auto;
@@ -339,18 +342,10 @@ video { display: block; width: 100%; height: clamp(520px, calc(100vh - 208px), 1
   color: var(--text);
 }
 .detail-panel.left {
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 50%;
   border-right: 1px solid rgba(99, 243, 255, 0.15);
   background: linear-gradient(135deg, rgba(12, 18, 32, 0.92), rgba(8, 14, 26, 0.95));
 }
 .detail-panel.right {
-  right: 0;
-  top: 0;
-  bottom: 0;
-  width: 50%;
   background: linear-gradient(225deg, rgba(12, 18, 32, 0.92), rgba(8, 14, 26, 0.95));
 }
 .detail-header {

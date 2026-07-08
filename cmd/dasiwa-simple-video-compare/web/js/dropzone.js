@@ -21,10 +21,11 @@ function loadDroppedVideo(file, input, video) {
   const oldUrl = video.dataset.objectUrl;
   if (oldUrl) URL.revokeObjectURL(oldUrl);
   const url = URL.createObjectURL(file);
+  const localPath = file.path || file.webkitRelativePath || '';
   video.src = url;
   video.preload = 'auto';
   video.dataset.objectUrl = url;
-  input.value = file.name;
+  input.value = localPath || file.name;
   input.dispatchEvent(new Event('input', { bubbles: true }));
   video.load();
 }
