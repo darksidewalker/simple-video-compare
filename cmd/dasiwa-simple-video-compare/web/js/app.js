@@ -149,7 +149,6 @@ async function openRuntimeDialog() {
       <div style="display:flex;flex-direction:column;gap:6px;color:var(--muted);font-size:13px;">
         <div><strong style="color:var(--text)">UX Mode:</strong> ${runtime.ux_mode || '—'}</div>
         <div><strong style="color:var(--text)">FFmpeg:</strong> ${ffmpeg}</div>
-        <div><strong style="color:var(--text)">Root Dir:</strong> <code style="color:var(--amber);font-size:12px">${runtime.root_dir || '—'}</code></div>
       </div>`;
   } catch {
     summary.innerHTML = '<small style="color:var(--red)">Runtime unavailable</small>';
