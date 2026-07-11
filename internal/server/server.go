@@ -16,6 +16,7 @@ type Server struct {
 	mu      sync.RWMutex
 	media   map[string]MediaEntry
 	cache   map[string][]byte
+	compat  map[string]string
 }
 
 func New(assets fs.FS, version string) http.Handler {
@@ -33,6 +34,6 @@ func NewWithConfig(assets fs.FS, version string, config Config) http.Handler {
 	if config.MaxRAMCacheBytes == 0 {
 		config.MaxRAMCacheBytes = 2 << 30
 	}
-	s := &Server{assets: assets, version: version, config: config, media: make(map[string]MediaEntry), cache: make(map[string][]byte)}
+	s := &Server{assets: assets, version: version, config: config, media: make(map[string]MediaEntry), cache: make(map[string][]byte), compat: make(map[string]string)}
 	return s.routes()
 }

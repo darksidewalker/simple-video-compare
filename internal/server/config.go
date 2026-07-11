@@ -15,6 +15,7 @@ type MediaEntry struct {
 	URL        string `json:"url"`
 	Cached     bool   `json:"cached"`
 	CacheBytes int64  `json:"cache_bytes"`
+	Compatible bool   `json:"compatible"`
 }
 
 type RuntimeInfo struct {

@@ -24,10 +24,12 @@ document.addEventListener('DOMContentLoaded', () => {
     else videoDetailsBtn.style.display = 'none';
     if (hasA && hasB && !videoDetailsState.detailsVisible) loadAllProbes();
   }
-  wireDropZone(document.getElementById('dropA'), document.getElementById('pathA'), videoA);
-  wireDropZone(document.getElementById('dropB'), document.getElementById('pathB'), videoB);
+  wireDropZone(document.getElementById('dropA'), pathA, videoA, { input: pathB, video: videoB });
+  wireDropZone(document.getElementById('dropB'), pathB, videoB, { input: pathA, video: videoA });
   pathA.addEventListener('input', checkAnyLoaded);
   pathB.addEventListener('input', checkAnyLoaded);
+  videoA.addEventListener('loadedmetadata', () => updatePanelAspect(videoA));
+  videoB.addEventListener('loadedmetadata', () => updatePanelAspect(videoB));
   document.getElementById('browseA').addEventListener('click', () => localBrowser.open({ videoId: 'videoA', inputId: 'pathA' }));
   document.getElementById('browseB').addEventListener('click', () => localBrowser.open({ videoId: 'videoB', inputId: 'pathB' }));
 
@@ -151,6 +153,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function updateTime() {
     timeLabel.textContent = `${formatTime(compare.currentTime())} / ${formatTime(compare.duration())}`;
+  }
+
+  function updatePanelAspect(video) {
+    if (!video.videoWidth || !video.videoHeight) return;
+    const panel = video.closest('.video-panel');
+    if (!panel) return;
+    panel.style.setProperty('--video-aspect', `${video.videoWidth} / ${video.videoHeight}`);
   }
 });
 

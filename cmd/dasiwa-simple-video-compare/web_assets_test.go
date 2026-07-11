@@ -150,4 +150,13 @@ func TestVideoDetailsButtonUpdatesAfterProgrammaticLoad(t *testing.T) {
 			t.Fatalf("%s must dispatch input after setting path programmatically", name)
 		}
 	}
+	if !strings.Contains(drop, "Array.from(event.dataTransfer.files || [])") {
+		t.Fatal("dropzone.js must handle multi-file drops")
+	}
+	if !strings.Contains(app, "{ input: pathB, video: videoB }") || !strings.Contains(app, "{ input: pathA, video: videoA }") {
+		t.Fatal("app.js must wire paired drop targets so dropping two videos fills both slots")
+	}
+	if !strings.Contains(app, "updatePanelAspect") || !strings.Contains(app, "--video-aspect") {
+		t.Fatal("app.js must update video panel aspect ratios from loaded metadata")
+	}
 }

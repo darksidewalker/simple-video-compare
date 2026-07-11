@@ -170,9 +170,11 @@ small, .note { color: var(--muted); }
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 4px;
+  align-items: start;
   min-height: clamp(560px, calc(100vh - 174px), 1180px);
 }
 .video-panel {
+  display: grid;
   min-height: 0;
   border: 1px solid var(--line);
   border-radius: 13px;
@@ -190,7 +192,8 @@ small, .note { color: var(--muted); }
 }
 .panel-head span { color: #061019; background: var(--amber); border-radius: 999px; padding: 2px 8px; font-weight: 900; }
 .panel-head strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-video { display: block; width: 100%; height: clamp(520px, calc(100vh - 208px), 1140px); background: #000; object-fit: contain; }
+.viewer.side-mode .video-panel { aspect-ratio: var(--video-aspect, 16 / 9); }
+video { display: block; width: 100%; height: 100%; max-height: clamp(520px, calc(100vh - 208px), 1140px); background: #000; object-fit: contain; }
 
 .viewer.slider-mode,
 .viewer.blend-mode,
@@ -208,6 +211,7 @@ video { display: block; width: 100%; height: clamp(520px, calc(100vh - 208px), 1
 .viewer.diff-mode .video-panel {
   position: absolute;
   inset: 0;
+  aspect-ratio: auto;
   border: 0;
   border-radius: 0;
   background: transparent;
