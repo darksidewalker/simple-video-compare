@@ -1,23 +1,8 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use std::collections::HashMap;
-use std::sync::Mutex;
-use tauri::Manager;
 use serde_json::json;
+use tauri::Manager;
 
-struct AppState {
-    media_cache: HashMap<String, Vec<u8>>,
-}
-
-impl Clone for AppState {
-    fn clone(&self) -> Self {
-        AppState {
-            media_cache: self.media_cache.clone(),
-        }
-    }
-}
-
-// ── Fullscreen commands ───────────────────────────────────────────────
 #[tauri::command]
 fn enter_fullscreen(window: tauri::Window) -> Result<(), String> {
     window.set_fullscreen(true).map_err(|e| e.to_string())
@@ -28,7 +13,6 @@ fn exit_fullscreen(window: tauri::Window) -> Result<(), String> {
     window.set_fullscreen(false).map_err(|e| e.to_string())
 }
 
-// ── Health & runtime ──────────────────────────────────────────────────
 #[tauri::command]
 fn handle_health() -> Result<serde_json::Value, String> {
     Ok(json!({"status":"ok"}))
@@ -43,7 +27,6 @@ fn handle_runtime() -> Result<serde_json::Value, String> {
     }))
 }
 
-// ── File browsing ─────────────────────────────────────────────────────
 #[tauri::command]
 fn handle_browse(path: Option<String>) -> Result<serde_json::Value, String> {
     let base = path.unwrap_or_else(|| ".".to_string());
@@ -72,7 +55,6 @@ fn handle_browse(path: Option<String>) -> Result<serde_json::Value, String> {
     Ok(json!({"path": base, "items": items}))
 }
 
-// ── Video probe (ffprobe) ─────────────────────────────────────────────
 #[tauri::command]
 fn handle_video_probe(path: String) -> Result<serde_json::Value, String> {
     let output = std::process::Command::new("ffprobe")
@@ -91,7 +73,6 @@ fn handle_video_probe(path: String) -> Result<serde_json::Value, String> {
     Ok(raw)
 }
 
-// ── Media register & cache ────────────────────────────────────────────
 fn media_id(path: &str) -> String {
     use sha1::{Digest, Sha1};
     let mut hasher = Sha1::new();
@@ -100,7 +81,7 @@ fn media_id(path: &str) -> String {
 }
 
 #[tauri::command]
-fn handle_register_media(app_state: tauri::State<Mutex<AppState>>, path: String) -> Result<serde_json::Value, String> {
+fn handle_register_media(path: String) -> Result<serde_json::Value, String> {
     let info = std::fs::metadata(&path)
         .map_err(|_| format!("File not found: {}", path))?;
     if info.is_dir() {
@@ -138,20 +119,10 @@ fn handle_register_media(app_state: tauri::State<Mutex<AppState>>, path: String)
 }
 
 #[tauri::command]
-fn handle_cache_media(app_state: tauri::State<Mutex<AppState>>, id: String) -> Result<serde_json::Value, String> {
-    let guard = app_state.lock().map_err(|e| e.to_string())?;
-    if let Some(data) = guard.media_cache.get(&id) {
-        return Ok(json!({
-            "id": id,
-            "cached": true,
-            "cache_bytes": data.len(),
-        }));
-    }
-    drop(guard);
+fn handle_cache_media(_id: String) -> Result<serde_json::Value, String> {
     Err("ID not registered".into())
 }
 
-// ── Static file serving ───────────────────────────────────────────────
 #[tauri::command]
 fn serve_asset(filename: String) -> Result<String, String> {
     match filename.as_str() {
@@ -166,7 +137,6 @@ fn serve_asset(filename: String) -> Result<String, String> {
     }
 }
 
-// ── App info ──────────────────────────────────────────────────────────
 #[tauri::command]
 fn get_app_info() -> String {
     json!({
@@ -176,7 +146,6 @@ fn get_app_info() -> String {
     }).to_string()
 }
 
-// ── Embedded web assets ───────────────────────────────────────────────
 const INDEX_HTML: &str = include_str!("../../cmd/dasiwa-simple-video-compare/web/index.html");
 const CSS_APP: &str = include_str!("../../cmd/dasiwa-simple-video-compare/web/css/app.css");
 const JS_API: &str = include_str!("../../cmd/dasiwa-simple-video-compare/web/js/api.js");
@@ -187,7 +156,6 @@ const JS_FILEBROWSER: &str = include_str!("../../cmd/dasiwa-simple-video-compare
 
 fn main() {
     tauri::Builder::default()
-        .manage(Mutex::new(AppState { media_cache: HashMap::new() }))
         .invoke_handler(tauri::generate_handler![
             enter_fullscreen,
             exit_fullscreen,
@@ -201,7 +169,7 @@ fn main() {
             get_app_info,
         ])
         .setup(move |app_handle| {
-            let win = app_handle.get_webview_window("main").unwrap();
+            let win = app_handle.get_webview_window("video-compare-main").unwrap();
             win.set_title("DaSiWa Simple Video Compare")?;
             win.center()?;
             win.set_resizable(true)?;
