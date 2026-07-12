@@ -1,0 +1,10 @@
+/home/darksidewalker/GitHub/DaSiWa-simple-video-compare/src-tauri/target/release/deps/litemap-3c55bc4dcb5dae0a.d: /home/darksidewalker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/litemap-0.8.2/src/lib.rs /home/darksidewalker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/litemap-0.8.2/src/map.rs /home/darksidewalker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/litemap-0.8.2/src/store/mod.rs /home/darksidewalker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/litemap-0.8.2/src/store/slice_impl.rs
+
+/home/darksidewalker/GitHub/DaSiWa-simple-video-compare/src-tauri/target/release/deps/liblitemap-3c55bc4dcb5dae0a.rlib: /home/darksidewalker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/litemap-0.8.2/src/lib.rs /home/darksidewalker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/litemap-0.8.2/src/map.rs /home/darksidewalker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/litemap-0.8.2/src/store/mod.rs /home/darksidewalker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/litemap-0.8.2/src/store/slice_impl.rs
+
+/home/darksidewalker/GitHub/DaSiWa-simple-video-compare/src-tauri/target/release/deps/liblitemap-3c55bc4dcb5dae0a.rmeta: /home/darksidewalker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/litemap-0.8.2/src/lib.rs /home/darksidewalker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/litemap-0.8.2/src/map.rs /home/darksidewalker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/litemap-0.8.2/src/store/mod.rs /home/darksidewalker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/litemap-0.8.2/src/store/slice_impl.rs
+
+/home/darksidewalker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/litemap-0.8.2/src/lib.rs:
+/home/darksidewalker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/litemap-0.8.2/src/map.rs:
+/home/darksidewalker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/litemap-0.8.2/src/store/mod.rs:
+/home/darksidewalker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/litemap-0.8.2/src/store/slice_impl.rs:

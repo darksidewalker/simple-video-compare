@@ -2,47 +2,55 @@ package main
 
 import (
 	"embed"
-	"flag"
 	"fmt"
 	"io/fs"
 	"log"
 	"net/http"
+	"os"
+	"strconv"
+	"time"
 
-	"dasiwa-simple-video-compare/internal/app"
+	"dasiwa-simple-video-compare/internal/media"
 	"dasiwa-simple-video-compare/internal/server"
 )
-
-var version = "dev"
 
 //go:embed web
 var webFS embed.FS
 
 func main() {
-	host := flag.String("host", "127.0.0.1", "server host")
-	port := flag.Int("port", 8765, "server port")
-	noOpen := flag.Bool("no-open", false, "do not open browser")
-	browserMode := flag.Bool("browser", false, "open normal browser instead of local app window")
-	flag.Parse()
+	port := 1420
+	if p := os.Getenv("DAWVC_PORT"); p != "" {
+		if v, err := strconv.Atoi(p); err == nil && v > 0 {
+			port = v
+		}
+	}
 
 	assets, err := fs.Sub(webFS, "web")
 	if err != nil {
-		log.Fatalf("web assets: %v", err)
+		log.Fatalf("failed to embed web assets: %v", err)
 	}
 
-	addr := fmt.Sprintf("%s:%d", *host, *port)
-	url := "http://" + addr
-	if !*noOpen {
-		go func() {
-			if *browserMode {
-				_ = app.OpenBrowser(url)
-				return
-			}
-			_ = app.OpenAppWindow(url)
-		}()
+	rootDir, _ := os.UserHomeDir()
+	if rootDir == "" {
+		rootDir = "."
 	}
 
-	fmt.Printf("DaSiWa Simple Video Compare running at %s\n", url)
-	if err := http.ListenAndServe(addr, server.New(assets, version)); err != nil {
-		log.Fatal(err)
+	srv := server.NewWithConfig(assets, "0.2.0-tauri", server.Config{
+		RootDir:          rootDir,
+		Tools:            media.ResolvePathTools(),
+		MaxRAMCacheBytes: 2 << 30,
+	})
+
+	addr := fmt.Sprintf(":%d", port)
+	httpServer := &http.Server{
+		Addr:         addr,
+		Handler:      srv,
+		ReadTimeout:  30 * time.Second,
+		WriteTimeout: 30 * time.Second,
+	}
+
+	fmt.Printf("DaSiWa Simple Video Compare starting on http://localhost%s\n", addr)
+	if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		log.Fatalf("server failed: %v", err)
 	}
 }

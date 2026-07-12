@@ -1,0 +1,11 @@
+/home/darksidewalker/GitHub/DaSiWa-simple-video-compare/src-tauri/target/release/deps/phf-6248ba85d4ed3f38.d: /home/darksidewalker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/phf-0.13.1/src/lib.rs /home/darksidewalker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/phf-0.13.1/src/map.rs /home/darksidewalker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/phf-0.13.1/src/ordered_map.rs /home/darksidewalker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/phf-0.13.1/src/ordered_set.rs /home/darksidewalker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/phf-0.13.1/src/set.rs
+
+/home/darksidewalker/GitHub/DaSiWa-simple-video-compare/src-tauri/target/release/deps/libphf-6248ba85d4ed3f38.rlib: /home/darksidewalker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/phf-0.13.1/src/lib.rs /home/darksidewalker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/phf-0.13.1/src/map.rs /home/darksidewalker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/phf-0.13.1/src/ordered_map.rs /home/darksidewalker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/phf-0.13.1/src/ordered_set.rs /home/darksidewalker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/phf-0.13.1/src/set.rs
+
+/home/darksidewalker/GitHub/DaSiWa-simple-video-compare/src-tauri/target/release/deps/libphf-6248ba85d4ed3f38.rmeta: /home/darksidewalker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/phf-0.13.1/src/lib.rs /home/darksidewalker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/phf-0.13.1/src/map.rs /home/darksidewalker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/phf-0.13.1/src/ordered_map.rs /home/darksidewalker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/phf-0.13.1/src/ordered_set.rs /home/darksidewalker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/phf-0.13.1/src/set.rs
+
+/home/darksidewalker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/phf-0.13.1/src/lib.rs:
+/home/darksidewalker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/phf-0.13.1/src/map.rs:
+/home/darksidewalker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/phf-0.13.1/src/ordered_map.rs:
+/home/darksidewalker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/phf-0.13.1/src/ordered_set.rs:
+/home/darksidewalker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/phf-0.13.1/src/set.rs:

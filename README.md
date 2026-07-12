@@ -2,23 +2,24 @@
 
 ![Preview](assets/preview.png)
 
-Ein kleines Go-Single-Binary-Tool zum seitlichen Vergleich zweier Videodateien mit eingebetteter Dark-Cyber-Lokal-UX im Browser.
+Ein natives Desktop-Tool zum seitlichen Vergleich zweier lokaler Videodateien. Die Wiedergabe läuft über libmpv/FFmpeg statt über ein Browser-`<video>`-Element und ist daher nicht auf Browser-Codecs beschränkt.
 
 ## Features
 
-- **Vergleichsmodi**: Side-by-Side, Slider, Blend und Difference
-- **Lokale Datei-Auswahl**: Dateibrowser öffnet sich direkt auf dem Server-Rechner per absolutem Pfad
-- **Token-basierte Medien-Zustellung**: Ausgewählte Videos werden sicher über `/media/{token}/...` bereitgestellt
-- **FFmpeg/FFprobe-Erkennung**: Werden automatisch aus PATH detektiert und im Runtime-Panel angezeigt
-- **Native Wiedergabe**: Abhängig von den Codec-Fähigkeiten des eingebetteten Browsers; FFmpeg-Proxy/Cache als nächste Fallback-Schicht
-- **RAM-basierter Cache**: Vorbereitende Pufferung für flüssiges Suchen und Abspielen
-- **Konfigurierbar**: Host und Port lassen sich über Flags setzen (Standard: `127.0.0.1:8765`)
+- Standalone-UX: Eigenes Desktop-Fenster, kein Browser und kein lokaler Webserver im Standardmodus
+- libmpv-Wiedergabe: Decoder, Demuxer, Untertitel und Hardwarebeschleunigung aus der lokalen mpv/FFmpeg-Installation
+- Synchroner Vergleich: Zwei unabhängige native Player, gemeinsame Wiedergabe, Seek und expliziter Sync
+- Lokale Datei-Auswahl: Native Dateidialoge oder Datei-Drop direkt auf die linke/rechte Videohälfte; zwei gleichzeitig gedroppte Dateien belegen A und B
+- Gebündeltes libmpv: Der Linux-Build legt `libmpv.so` neben das Binary und verwendet einen relativen Runtime-Pfad
+- Legacy-Browsermodus: Die bisherige Weboberfläche bleibt mit `--browser` verfügbar
 
 ## Voraussetzungen
 
-- Go 1.22 oder neuer
-- FFmpeg und FFprobe (müssen im PATH verfügbar sein)
-- Chromium/Chrome-kompatibler Browser (optional, für App-Window-Modus)
+- Go 1.25 oder neuer (zum Bauen)
+- libmpv inklusive Entwicklungsdateien auf dem Build-System
+- Linux-Beispiel: Paket `mpv` sowie das zugehörige Entwicklungs-Paket der Distribution
+
+Die gebauten Linux-Bundles enthalten `libmpv.so`; die übrigen dynamischen Basisbibliotheken des Zielsystems (z. B. libc, X11, Audio-/GPU-Treiber) bleiben absichtlich Systemabhängigkeiten.
 
 ## Schnellstart
 
@@ -26,59 +27,37 @@ Ein kleines Go-Single-Binary-Tool zum seitlichen Vergleich zweier Videodateien m
 go run ./cmd/dasiwa-simple-video-compare
 ```
 
-Ohne Browserfenster öffnen:
-
-```bash
-go run ./cmd/dasiwa-simple-video-compare --no-open
-```
-
-Normaler Browser-Tab statt App-Window:
+Die bisherige Browseroberfläche starten:
 
 ```bash
 go run ./cmd/dasiwa-simple-video-compare --browser
 ```
 
-Mit benutzerdefiniertem Host und Port:
-
-```bash
-go run ./cmd/dasiwa-simple-video-compare --host 0.0.0.0 --port 9000
-```
-
 ## Build
 
 ```bash
-go build -o ./dist/dasiwa-simple-video-compare ./cmd/dasiwa-simple-video-compare
+go build -o ./dasiwa-simple-video-compare-linux-amd64 ./cmd/dasiwa-simple-video-compare
+go build -o ./dist/dasiwa-simple-video-compare-linux-amd64 ./cmd/dasiwa-simple-video-compare
 ```
 
-Das kompilierte Binary liegt dann unter `dist/dasiwa-simple-video-compare`.
+Die Linux-Binaries benötigen zur Laufzeit die Systembibliothek `libmpv.so`.
 
 ## Projektstruktur
 
 ```
 ├── cmd/dasiwa-simple-video-compare/
-│   ├── main.go              # Einstiegspunkt, CLI-Flags, embed
-│   └── web/                 # Eingebettete Frontend-Assets (HTML/CSS/JS)
+│   ├── main.go              # Einstiegspunkt für die Desktop-UX
+│   └── web/                 # Eingebettete Assets für den optionalen Browsermodus
 ├── internal/
-│   ├── app/                 # Browser-App-Window-Launcher
+│   ├── player/              # libmpv-basierte native Video-Renderer
 │   ├── media/               # FFmpeg/FFprobe-Werkzeugerkennung
-│   └── server/              # HTTP-Server, Routes, Handler, Cache
+│   └── server/              # HTTP-Server für den optionalen Browsermodus
 ├── assets/                  # Projekt-Assets (Screenshots, Icons)
-│   ├── preview.png          # Vorschaubild der Oberfläche
-│   └── preview.svg          # SVG-Quelle des Vorschaubildes
 ├── dist/                    # Kompilierte Binaries
 └── go.mod                   # Go-Moduldefinition
 ```
 
-## API-Endpunkte
-
-| Methode | Pfad                | Beschreibung                     |
-|---------|---------------------|----------------------------------|
-| GET     | /health             | Healthcheck                      |
-| GET     | /api/runtime        | Runtime-Info (Tools, Version)    |
-| GET     | /api/browse         | Lokalen Dateibaum durchsuchen    |
-| POST    | /api/media/register | Video registrieren               |
-| POST    | /api/media/cache    | Video in RAM cachen              |
-| GET     | /media/*            | Token-basierten Videozugriff     |
+Der Browsermodus stellt weiterhin die bisherigen lokalen HTTP-Endpunkte bereit.
 
 ## Lizenz
 

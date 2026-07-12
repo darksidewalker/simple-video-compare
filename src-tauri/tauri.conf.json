@@ -1,0 +1,31 @@
+{
+  "productName": "DaSiWa Simple Video Compare",
+  "identifier": "com.dasiwa.simple-video-compare",
+  "version": "0.2.0",
+  "build": {
+    "beforeDevCommand": "",
+    "beforeBuildCommand": "",
+    "frontendDist": "../cmd/dasiwa-simple-video-compare/web",
+    "devUrl": "http://localhost:1420"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "DaSiWa Simple Video Compare",
+        "width": 1400,
+        "height": 900,
+        "resizable": true,
+        "fullscreen": false,
+        "decorations": true,
+        "center": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all"
+  }
+}

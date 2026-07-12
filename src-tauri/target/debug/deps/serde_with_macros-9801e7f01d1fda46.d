@@ -1,0 +1,8 @@
+/home/darksidewalker/GitHub/DaSiWa-simple-video-compare/src-tauri/target/debug/deps/serde_with_macros-9801e7f01d1fda46.d: /home/darksidewalker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde_with_macros-3.21.0/src/lib.rs /home/darksidewalker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde_with_macros-3.21.0/src/apply.rs /home/darksidewalker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde_with_macros-3.21.0/src/lazy_bool.rs /home/darksidewalker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde_with_macros-3.21.0/src/utils.rs
+
+/home/darksidewalker/GitHub/DaSiWa-simple-video-compare/src-tauri/target/debug/deps/libserde_with_macros-9801e7f01d1fda46.so: /home/darksidewalker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde_with_macros-3.21.0/src/lib.rs /home/darksidewalker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde_with_macros-3.21.0/src/apply.rs /home/darksidewalker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde_with_macros-3.21.0/src/lazy_bool.rs /home/darksidewalker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde_with_macros-3.21.0/src/utils.rs
+
+/home/darksidewalker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde_with_macros-3.21.0/src/lib.rs:
+/home/darksidewalker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde_with_macros-3.21.0/src/apply.rs:
+/home/darksidewalker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde_with_macros-3.21.0/src/lazy_bool.rs:
+/home/darksidewalker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde_with_macros-3.21.0/src/utils.rs:

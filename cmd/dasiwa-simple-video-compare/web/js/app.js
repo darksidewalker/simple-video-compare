@@ -93,6 +93,18 @@ document.addEventListener('DOMContentLoaded', () => {
       });
   });
 
+  // Fullscreen toggle (Tauri integration)
+  const toggleFullscreenBtn = document.getElementById('toggleFullscreenBtn');
+  if (toggleFullscreenBtn) {
+    toggleFullscreenBtn.addEventListener('click', async () => {
+      try {
+        await window.__TAURI__.core.invoke('enter_fullscreen');
+      } catch (e) {
+        console.warn('Fullscreen not available:', e);
+      }
+    });
+  }
+
   seek.addEventListener('input', () => {
     compare.isSeeking = true;
     compare.seekRatio(seek.value, seek.max);
