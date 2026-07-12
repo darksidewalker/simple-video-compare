@@ -35,11 +35,17 @@ func main() {
 		rootDir = "."
 	}
 
+	// Redirect stderr during server construction to suppress GTK/GDK protocol
+	// errors from go-mpv's libmpv rendering backend. These occur because libmpv
+	// is dynamically linked against GTK even when running headless (no window).
+	stderrBackup := os.Stderr
+	os.Stderr = os.NewFile(0, "/dev/null")
 	srv := server.NewWithConfig(assets, "0.2.0-tauri", server.Config{
 		RootDir:          rootDir,
 		Tools:            media.ResolvePathTools(),
 		MaxRAMCacheBytes: 2 << 30,
 	})
+	os.Stderr = stderrBackup
 
 	addr := fmt.Sprintf(":%d", port)
 	httpServer := &http.Server{
