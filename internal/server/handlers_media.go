@@ -134,16 +134,38 @@ func mediaID(path string) string {
 	return hex.EncodeToString(sum[:])[:16]
 }
 
+// probeFirstVideoCodec runs ffprobe and returns the codec name of the first
+// video stream. JSON output is used because the flat default format can emit
+// the codec line more than once for certain container files, which broke the
+// exact-string comparison the compatibility proxy relies on.
+func (s *Server) probeFirstVideoCodec(path string) string {
+	cmd := exec.Command(s.config.Tools.FFprobe.Path, "-v", "error", "-select_streams", "v:0", "-show_streams", "-of", "json", path)
+	output, err := cmd.Output()
+	if err != nil {
+		return ""
+	}
+	var parsed struct {
+		Streams []struct {
+			CodecType string `json:"codec_type"`
+			CodecName string `json:"codec_name"`
+		} `json:"streams"`
+	}
+	if err := json.Unmarshal(output, &parsed); err != nil {
+		return ""
+	}
+	for _, stream := range parsed.Streams {
+		if stream.CodecType == "video" {
+			return stream.CodecName
+		}
+	}
+	return ""
+}
+
 func (s *Server) needsCompatibleProxy(path string) bool {
 	if !s.config.Tools.FFprobe.Available || s.config.Tools.FFprobe.Path == "" || !s.config.Tools.FFmpeg.Available || s.config.Tools.FFmpeg.Path == "" {
 		return false
 	}
-	cmd := exec.Command(s.config.Tools.FFprobe.Path, "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=codec_name", "-of", "default=noprint_wrappers=1:nokey=1", path)
-	output, err := cmd.Output()
-	if err != nil {
-		return false
-	}
-	codec := strings.TrimSpace(string(output))
+	codec := strings.ToLower(strings.TrimSpace(s.probeFirstVideoCodec(path)))
 	return codec == "hevc" || codec == "h265" || codec == "vp9" || codec == "av1"
 }
 

@@ -48,11 +48,15 @@ func main() {
 	os.Stderr = stderrBackup
 
 	addr := fmt.Sprintf(":%d", port)
+	// No WriteTimeout: the compatibility proxy runs a synchronous ffmpeg
+	// transcode inside the register handler and serves media files of
+	// unbounded size, both of which can legitimately exceed any fixed
+	// write deadline. A 30s limit cut off registration responses for
+	// longer files.
 	httpServer := &http.Server{
-		Addr:         addr,
-		Handler:      srv,
-		ReadTimeout:  30 * time.Second,
-		WriteTimeout: 30 * time.Second,
+		Addr:        addr,
+		Handler:     srv,
+		ReadTimeout: 30 * time.Second,
 	}
 
 	fmt.Printf("DaSiWa Simple Video Compare starting on http://localhost%s\n", addr)
