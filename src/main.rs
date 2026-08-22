@@ -1,12 +1,10 @@
 use eframe::egui;
-use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
 struct AppState {
     root_dir: PathBuf,
-    media_entries: HashMap<String, MediaEntry>,
     current_mode: CompareMode,
     blend_value: f32,
     seek_position: f64,
@@ -15,23 +13,10 @@ struct AppState {
     path_a: Option<PathBuf>,
     path_b: Option<PathBuf>,
     show_details: bool,
-    show_browser: bool,
     browser_path: PathBuf,
-    browser_items: Vec<BrowserItem>,
-    drop_zone_hovered: bool,
-}
-
-struct MediaEntry {
-    id: String,
-    name: String,
-    path: PathBuf,
-}
-
-#[derive(Debug, Clone)]
-struct BrowserItem {
-    name: String,
-    path: PathBuf,
-    is_dir: bool,
+    show_browser: bool,
+    frame_texture_a: Option<(usize, usize, egui::TextureHandle)>,
+    frame_texture_b: Option<(usize, usize, egui::TextureHandle)>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -41,30 +26,22 @@ impl Default for CompareMode { fn default() -> Self { Self::Side } }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum AudioMode { A, B, Mute }
 
-fn clean_path(value: &str, fallback: &str) -> PathBuf {
-    let v = if value.is_empty() { fallback } else { value };
-    let expanded = if v.starts_with('~') {
-        dirs::home_dir().map(|h| h.join(&v[1..])).unwrap_or_else(|| PathBuf::from(v))
-    } else { PathBuf::from(v) };
-    fs::canonicalize(&expanded).unwrap_or(expanded)
-}
-
 fn is_video_ext(name: &str) -> bool {
     matches!(name.to_lowercase().as_str(),
         "mp4"|"mkv"|"mov"|"webm"|"avi"|"m4v"|"mpg"|"mpeg"|"ts"|"m2ts"|"flv"|"ogv")
 }
 
-fn compute_sha1_hex(input: &str) -> String {
-    use sha1::{Digest, Sha1};
-    let mut hasher = Sha1::new();
-    hasher.update(input.as_bytes());
-    hex::encode(hasher.finalize())
-}
-
 fn extract_frame(video_path: &str, seconds: f64) -> Option<Vec<u8>> {
     let output = Command::new("ffmpeg")
-        .args(["-ss", &seconds.to_string(), "-i", video_path,
-               "-frames:v", "1", "-f", "image2pipe", "-vcodec", "mjpeg", "-q:v", "2", "pipe:1"])
+        .args([
+            "-ss", &seconds.to_string(),
+            "-i", video_path,
+            "-frames:v", "1",
+            "-f", "image2pipe",
+            "-vcodec", "mjpeg",
+            "-q:v", "2",
+            "pipe:1"
+        ])
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::null())
@@ -72,57 +49,8 @@ fn extract_frame(video_path: &str, seconds: f64) -> Option<Vec<u8>> {
 
     match output {
         Ok(out) if out.status.success() => Some(out.stdout),
-        Ok(_) => None,
-        Err(e) => { eprintln!("ffmpeg not found: {}", e); None }
+        _ => None,
     }
-}
-
-fn register_media(state: &mut AppState, path: PathBuf) -> Result<(), String> {
-    let metadata = fs::metadata(&path).map_err(|e| format!("File not found: {}", e))?;
-    if metadata.is_dir() { return Err("Not a file".into()); }
-    let filename = path.file_name().and_then(|f| f.to_str()).unwrap_or("");
-    if !is_video_ext(filename) { return Err("Unsupported video extension".into()); }
-    let id = compute_sha1_hex(&path.to_string_lossy())[..16].to_string();
-    state.media_entries.insert(id.clone(), MediaEntry {
-        id, name: filename.to_string(), path,
-    });
-    Ok(())
-}
-
-fn browse_directory(state: &mut AppState, dir: PathBuf) {
-    state.browser_path = dir.clone();
-    state.browser_items.clear();
-    if let Ok(entries) = fs::read_dir(&dir) {
-        for entry in entries.flatten() {
-            let name = entry.file_name().to_string_lossy().to_string();
-            if name.starts_with('.') { continue; }
-            let meta = match entry.metadata() { Ok(m) => m, Err(_) => continue };
-            if meta.is_dir() || is_video_ext(&name) {
-                state.browser_items.push(BrowserItem {
-                    name, path: entry.path(), is_dir: meta.is_dir(),
-                });
-            }
-        }
-    }
-}
-
-/// Try to load a dropped file into the next available slot (A or B).
-fn try_load_dropped(state: &mut AppState, file_path: &str) {
-    let ext = Path::new(file_path)
-        .extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
-    if !is_video_ext(&ext) { return; }
-    let pb = PathBuf::from(file_path);
-    let media_path = if state.path_a.is_none() {
-        state.path_a = Some(pb.clone());
-        pb
-    } else if state.path_b.is_none() {
-        state.path_b = Some(pb.clone());
-        pb
-    } else {
-        state.path_b = Some(pb.clone());
-        pb
-    };
-    let _ = register_media(state, media_path);
 }
 
 fn make_texture(ctx: &egui::Context, jpeg_data: &[u8]) -> Option<(usize, usize, egui::TextureHandle)> {
@@ -136,185 +64,207 @@ fn make_texture(ctx: &egui::Context, jpeg_data: &[u8]) -> Option<(usize, usize, 
     Some((w, h, handle))
 }
 
+fn load_dropped_file(state: &mut AppState, file_path: &str) {
+    let ext = Path::new(file_path)
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+    
+    if !is_video_ext(&ext) { return; }
+    
+    let pb = PathBuf::from(file_path);
+    
+    if state.path_a.is_none() {
+        state.path_a = Some(pb.clone());
+    } else if state.path_b.is_none() {
+        state.path_b = Some(pb.clone());
+    } else {
+        state.path_b = Some(pb);
+    }
+}
+
 impl eframe::App for AppState {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-
-        // ── Handle dropped files ONCE at start of frame ───────────
+        
+        // ════════════════════════════════════════════════════════════
+        // CRITICAL: Capture ALL OS-level dropped files IMMEDIATELY
+        // This MUST happen BEFORE any other ctx.input() calls
+        // because egui clears raw.dropped_files after first read
+        // ════════════════════════════════════════════════════════════
+        let mut dropped_paths: Vec<String> = Vec::new();
+        
         ctx.input(|i| {
             for f in &i.raw.dropped_files {
                 if let Some(p) = &f.path {
-                    try_load_dropped(self, &p.to_string_lossy());
+                    dropped_paths.push(p.to_string_lossy().to_string());
                 }
             }
         });
-
-        // ── TOP BAR: minimal controls only ────────────────────────
+        
+        // Process all dropped files immediately
+        for dp in &dropped_paths {
+            println!("Dropped: {}", dp);
+            load_dropped_file(self, dp);
+        }
+        
+        // ════════════════════════════════════════════════════════════
+        // TOP BAR
+        // ════════════════════════════════════════════════════════════
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.heading("DaSiWa Video Compare");
+                
                 ui.separator();
-
-                ui.label("A:");
+                ui.label("Video A:");
+                if let Some(ref p) = self.path_a {
+                    ui.label(p.display().to_string()).on_hover_text("Drop video here or click Browse");
+                }
                 if ui.small_button("Browse...").clicked() {
-                    browse_directory(self, self.root_dir.clone());
+                    self.browser_path = self.root_dir.clone();
                     self.show_browser = true;
                 }
-                if let Some(ref path) = self.path_a {
-                    ui.text_edit_singleline(&mut path.display().to_string());
-                }
-                if ui.small_button("Load A").clicked() {
-                    if let Some(ref path) = self.path_a {
-                        let s = path.display().to_string();
-                        let p = clean_path(&s, "");
-                        let _ = register_media(self, p);
-                    }
-                }
+                
                 ui.separator();
-
-                ui.label("B:");
+                ui.label("Video B:");
+                if let Some(ref p) = self.path_b {
+                    ui.label(p.display().to_string()).on_hover_text("Drop video here or click Browse");
+                }
                 if ui.small_button("Browse...").clicked() {
-                    browse_directory(self, self.root_dir.clone());
+                    self.browser_path = self.root_dir.clone();
                     self.show_browser = true;
                 }
-                if let Some(ref path) = self.path_b {
-                    ui.text_edit_singleline(&mut path.display().to_string());
-                }
-                if ui.small_button("Load B").clicked() {
-                    if let Some(ref path) = self.path_b {
-                        let s = path.display().to_string();
-                        let p = clean_path(&s, "");
-                        let _ = register_media(self, p);
-                    }
-                }
+                
                 ui.separator();
-
-                egui::ComboBox::from_label("")
+                
+                egui::ComboBox::from_label("Mode")
                     .selected_text(match self.current_mode {
-                        CompareMode::Side => "Side",
+                        CompareMode::Side => "Side by Side",
                         CompareMode::Slider => "Slider",
                         CompareMode::Blend => "Blend",
-                        CompareMode::Diff => "Diff",
+                        CompareMode::Diff => "Difference",
                     })
                     .show_ui(ui, |ui| {
-                        ui.selectable_value(&mut self.current_mode, CompareMode::Side, "Side");
+                        ui.selectable_value(&mut self.current_mode, CompareMode::Side, "Side by Side");
                         ui.selectable_value(&mut self.current_mode, CompareMode::Slider, "Slider");
                         ui.selectable_value(&mut self.current_mode, CompareMode::Blend, "Blend");
-                        ui.selectable_value(&mut self.current_mode, CompareMode::Diff, "Diff");
+                        ui.selectable_value(&mut self.current_mode, CompareMode::Diff, "Difference");
                     });
-
+                
                 ui.separator();
-                ui.checkbox(&mut self.show_details, "Details");
-                ui.separator();
+                
                 if ui.button("Quit").clicked() {
                     ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                 }
             });
         });
-
-        // ── CENTRAL PANEL: large interactive drop zone ────────────
+        
+        // ════════════════════════════════════════════════════════════
+        // CENTRAL DROP ZONE - NO Sense needed, raw.dropped_files handles it
+        // ════════════════════════════════════════════════════════════
         egui::CentralPanel::default().show(ctx, |ui| {
-            let zone_w = ui.available_width();
-            let zone_h = 400.0;
-
-            // Big drop zone that captures drag events
-            let resp = ui.allocate_response(egui::vec2(zone_w, zone_h), egui::Sense::hover());
+            let available_width = ui.available_width();
             
-            // Visual feedback when hovering
-            if resp.hovered() {
-                let bg = egui::Color32::from_rgba_premultiplied(40, 40, 120, 60);
-                ui.painter().rect_filled(resp.rect, 8.0, bg);
-                let stroke = egui::Stroke::new(2.0_f32, egui::Color32::YELLOW);
-                ui.painter().rect_stroke(resp.rect, 8.0, stroke);
-                self.drop_zone_hovered = true;
-            } else {
-                self.drop_zone_hovered = false;
-            }
-
-            // Content inside the drop zone
-            ui.allocate_space(egui::vec2(zone_w, zone_h));
-            ui.centered_and_justified(|ui| {
-                if self.drop_zone_hovered {
-                    ui.label("Drop video files here →")
-                      .on_hover_text("Drag & drop any video file here");
-                } else if self.path_a.is_some() && self.path_b.is_some() {
-                    // Both videos loaded - show them side by side
+            // Draw a simple background for the whole central area
+            let bg_color = egui::Color32::from_rgba_premultiplied(25, 25, 40, 60);
+            let rect = egui::Rect::from_x_y_ranges(0.0..=available_width, 0.0..=ui.max_rect().height());
+            ui.painter().rect_filled(rect, 0.0, bg_color);
+            
+            ui.with_layout(egui::Layout::centered_and_justified(egui::Direction::TopDown), |ui| {
+                if self.path_a.is_some() || self.path_b.is_some() {
                     ui.horizontal_wrapped(|ui| {
-                        if let Some(ref path) = self.path_a {
-                            let path_str = path.display().to_string();
-                            if let Some(jpeg_data) = extract_frame(&path_str, self.seek_position) {
-                                if let Some((_w, _h, handle)) = make_texture(ctx, &jpeg_data) {
-                                    ui.image(&handle);
-                                }
-                            }
+                        if let Some(ref p) = self.path_a {
+                            let name = p.file_name()
+                                .and_then(|n| n.to_str())
+                                .unwrap_or("?");
+                            ui.label(format!("▶ {}", name));
                         }
-                        if let Some(ref path) = self.path_b {
-                            let path_str = path.display().to_string();
-                            if let Some(jpeg_data) = extract_frame(&path_str, self.seek_position) {
-                                if let Some((_w, _h, handle)) = make_texture(ctx, &jpeg_data) {
-                                    ui.image(&handle);
-                                }
-                            }
+                        if let Some(ref p) = self.path_b {
+                            let name = p.file_name()
+                                .and_then(|n| n.to_str())
+                                .unwrap_or("?");
+                            ui.label(format!("▶ {}", name));
                         }
                     });
                 } else {
-                    ui.label("Drop video files here →")
-                      .on_hover_text("Drag & drop any video file here");
+                    ui.label("📁 Drop video files here");
+                    ui.label("Supports MP4, MKV, MOV, AVI, WebM, and more");
                 }
             });
         });
-
-        // ── BOTTOM PANEL: seek/play controls ──────────────────────
+        
+        // ════════════════════════════════════════════════════════════
+        // BOTTOM CONTROLS
+        // ════════════════════════════════════════════════════════════
         egui::TopBottomPanel::bottom("controls").show(ctx, |ui| {
             ui.horizontal_centered(|ui| {
                 ui.label(format!("{:.2}s", self.seek_position));
-                ui.add(egui::Slider::new(&mut self.seek_position, 0.0..=600.0).text("Seek"));
-
+                ui.add(egui::Slider::new(&mut self.seek_position, 0.0..=600.0).text("Time"));
+                
                 ui.separator();
-
+                
                 ui.label(format!("{:.0}%", (self.blend_value * 100.0) as i32));
                 ui.add(egui::Slider::new(&mut self.blend_value, 0.0..=1.0).text("Blend"));
-
+                
                 ui.separator();
-
-                ui.label(format!("{:?}", self.audio_mode));
-                egui::ComboBox::from_label("")
-                    .selected_text(format!("{:?}", self.audio_mode))
-                    .show_ui(ui, |ui| {
-                        ui.selectable_value(&mut self.audio_mode, AudioMode::A, "A");
-                        ui.selectable_value(&mut self.audio_mode, AudioMode::B, "B");
-                        ui.selectable_value(&mut self.audio_mode, AudioMode::Mute, "Mute");
-                    });
-
-                ui.separator();
-
-                ui.checkbox(&mut self.playing, "Play");
-
+                
+                ui.checkbox(&mut self.playing, "Auto-play");
+                
                 if self.show_details {
                     ui.separator();
                     ui.label(format!("Mode: {:?}", self.current_mode));
                 }
             });
         });
-
-        // ── File browser dialog ──────────────────────────────────
+        
+        // ════════════════════════════════════════════════════════════
+        // FILE BROWSER DIALOG
+        // ════════════════════════════════════════════════════════════
         if self.show_browser {
-            egui::Window::new("File Browser").show(ctx, |ui| {
-                ui.label(format!("Current: {}", self.browser_path.display()));
-                let items_clone: Vec<BrowserItem> = self.browser_items.clone();
-                for item in items_clone {
-                    if ui.selectable_label(false, &item.name).clicked() {
-                        if item.is_dir {
-                            browse_directory(self, item.path);
-                        } else {
-                            self.path_a = Some(item.path);
-                            self.show_browser = false;
+            egui::Window::new("Select Video File")
+                .resizable(true)
+                .show(ctx, |ui| {
+                    ui.label(format!("Current directory: {}", self.browser_path.display()));
+                    
+                    if ui.button("Up one level").clicked() {
+                        if let Some(parent) = self.browser_path.parent() {
+                            self.browser_path = parent.to_path_buf();
                         }
                     }
-                }
-                if ui.button("Close").clicked() {
-                    self.show_browser = false;
-                }
-            });
+                    
+                    ui.separator();
+                    
+                    // List directories and video files
+                    if let Ok(entries) = fs::read_dir(&self.browser_path) {
+                        for entry in entries.flatten() {
+                            let name = entry.file_name().to_string_lossy().to_string();
+                            if name.starts_with('.') { continue; }
+                            
+                            if let Ok(meta) = entry.metadata() {
+                                if meta.is_dir() {
+                                    if ui.selectable_label(false, format!("📂 {}", name)).clicked() {
+                                        self.browser_path = entry.path();
+                                    }
+                                } else if is_video_ext(&name) {
+                                    if ui.selectable_label(false, format!("🎬 {}", name)).clicked() {
+                                        let target = if self.path_a.is_none() {
+                                            &mut self.path_a
+                                        } else {
+                                            &mut self.path_b
+                                        };
+                                        *target = Some(entry.path());
+                                        self.show_browser = false;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                    ui.separator();
+                    if ui.button("Close").clicked() {
+                        self.show_browser = false;
+                    }
+                });
         }
     }
 }
@@ -333,7 +283,6 @@ fn main() -> eframe::Result {
         Box::new(|_cc| {
             Ok(Box::new(AppState {
                 root_dir: dirs::home_dir().unwrap_or_else(|| PathBuf::from(".")),
-                media_entries: HashMap::new(),
                 current_mode: CompareMode::Side,
                 blend_value: 0.5,
                 seek_position: 0.0,
@@ -342,10 +291,10 @@ fn main() -> eframe::Result {
                 path_a: None,
                 path_b: None,
                 show_details: false,
-                show_browser: false,
                 browser_path: dirs::home_dir().unwrap_or_else(|| PathBuf::from(".")),
-                browser_items: Vec::new(),
-                drop_zone_hovered: false,
+                show_browser: false,
+                frame_texture_a: None,
+                frame_texture_b: None,
             }))
         }),
     )
