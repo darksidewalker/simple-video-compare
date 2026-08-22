@@ -1,13 +1,20 @@
 package main
 
 import (
+	"context"
 	"embed"
+	"flag"
 	"fmt"
 	"io/fs"
 	"log"
+	"net"
 	"net/http"
 	"os"
+	"os/exec"
+	"os/signal"
+	"runtime"
 	"strconv"
+	"syscall"
 	"time"
 
 	"dasiwa-simple-video-compare/internal/media"
@@ -18,6 +25,9 @@ import (
 var webFS embed.FS
 
 func main() {
+	noBrowser := flag.Bool("no-browser", false, "do not auto-open a browser window on start")
+	flag.Parse()
+
 	port := 1420
 	if p := os.Getenv("DAWVC_PORT"); p != "" {
 		if v, err := strconv.Atoi(p); err == nil && v > 0 {
@@ -47,20 +57,72 @@ func main() {
 	})
 	os.Stderr = stderrBackup
 
-	addr := fmt.Sprintf(":%d", port)
-	// No WriteTimeout: the compatibility proxy runs a synchronous ffmpeg
-	// transcode inside the register handler and serves media files of
-	// unbounded size, both of which can legitimately exceed any fixed
-	// write deadline. A 30s limit cut off registration responses for
-	// longer files.
+	// Bind the port ourselves so we know the server is accepting before we
+	// point the browser at it. No WriteTimeout: the compatibility proxy runs
+	// a synchronous ffmpeg transcode inside the register handler and serves
+	// unbounded media, so a fixed write deadline would cut long responses.
+	ln, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
+	if err != nil {
+		log.Fatalf("server failed to bind :%d (is another instance already running?): %v", port, err)
+	}
+
 	httpServer := &http.Server{
-		Addr:        addr,
 		Handler:     srv,
 		ReadTimeout: 30 * time.Second,
 	}
+	go httpServer.Serve(ln)
 
-	fmt.Printf("DaSiWa Simple Video Compare starting on http://localhost%s\n", addr)
-	if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		log.Fatalf("server failed: %v", err)
+	url := fmt.Sprintf("http://127.0.0.1:%d", port)
+	fmt.Printf("DaSiWa Simple Video Compare running at %s\n", url)
+
+	if !*noBrowser && shouldOpenBrowser() {
+		if err := launchBrowser(url); err != nil {
+			log.Printf("could not auto-open a browser (%v); open %s manually", err, url)
+		}
+	} else {
+		fmt.Printf("Open %s in a browser to use the app\n", url)
 	}
+
+	// Block until the process is asked to stop, then shut the server down
+	// cleanly so in-flight media responses can finish.
+	sig := make(chan os.Signal, 1)
+	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
+	<-sig
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	_ = httpServer.Shutdown(ctx)
+}
+
+// shouldOpenBrowser reports whether auto-opening a browser makes sense in the
+// current environment. On Linux without a display (headless, bare daemon,
+// systemd user unit with no session display) there is no window to open, so we
+// stay quiet instead of firing a stray xdg-open.
+func shouldOpenBrowser() bool {
+	if runtime.GOOS == "linux" {
+		if os.Getenv("DISPLAY") == "" && os.Getenv("WAYLAND_DISPLAY") == "" {
+			return false
+		}
+	}
+	return true
+}
+
+// launchBrowser opens the platform default browser at url without waiting for
+// it to finish, so the caller can keep blocking on signals.
+func launchBrowser(url string) error {
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "darwin":
+		cmd = exec.Command("open", url)
+	case "windows":
+		// `start` treats the first quoted arg as a window title, hence the
+		// empty-string placeholder before the URL.
+		cmd = exec.Command("cmd", "/c", "start", "", url)
+	default:
+		cmd = exec.Command("xdg-open", url)
+	}
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	return nil
 }

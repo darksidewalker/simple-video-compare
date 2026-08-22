@@ -11,7 +11,8 @@ Ein natives Desktop-Tool zum seitlichen Vergleich zweier lokaler Videodateien. D
 - Synchroner Vergleich: Zwei unabhängige native Player, gemeinsame Wiedergabe, Seek und expliziter Sync
 - Lokale Datei-Auswahl: Native Dateidialoge oder Datei-Drop direkt auf die linke/rechte Videohälfte; zwei gleichzeitig gedroppte Dateien belegen A und B
 - Gebündeltes libmpv: Der Linux-Build legt `libmpv.so` neben das Binary und verwendet einen relativen Runtime-Pfad
-- Legacy-Browsermodus: Die bisherige Weboberfläche bleibt mit `--browser` verfügbar
+- Web-UI: Die Weboberfläche läuft als eingebetteter lokaler HTTP-Server (Port 1420, `DAWVC_PORT` möglich)
+- Browser-Autostart: Bei Start mit grafischer Umgebung öffnet sich die Weboberfläche automatisch im Standardbrowser; `--no-browser` deaktiviert das
 
 ## Voraussetzungen
 
@@ -23,14 +24,16 @@ Die gebauten Linux-Bundles enthalten `libmpv.so`; die übrigen dynamischen Basis
 
 ## Schnellstart
 
+Die Web-UI starten (öffnet bei Start automatisch im Standardbrowser):
+
 ```bash
 go run ./cmd/dasiwa-simple-video-compare
 ```
 
-Die bisherige Browseroberfläche starten:
+Ohne Browserfenster öffnen (z. B. als Daemon):
 
 ```bash
-go run ./cmd/dasiwa-simple-video-compare --browser
+go run ./cmd/dasiwa-simple-video-compare --no-browser
 ```
 
 ## Build
