@@ -127,3 +127,40 @@ func TestProbeFirstVideoCodecIgnoresNonVideoStreams(t *testing.T) {
 		t.Fatal("H.264 file must not need the H.264 proxy")
 	}
 }
+
+// Client-declared native codec capability must suppress the H.264 proxy:
+// a client that can decode HEVC natively gets the raw file, no transcode.
+func TestNeedsCompatibleProxyHonorsClientCapabilities(t *testing.T) {
+	dir := t.TempDir()
+	videoPath := filepath.Join(dir, "clip.mp4")
+	mustWrite(t, videoPath, "video")
+	writeFakeFFprobe(t, dir, "hevc")
+	writeFakeFFmpeg(t, dir)
+
+	tools := media.Tools{
+		FFmpeg:  media.Tool{Name: "ffmpeg", Path: filepath.Join(dir, "ffmpeg"), Available: true},
+		FFprobe: media.Tool{Name: "ffprobe", Path: filepath.Join(dir, "ffprobe"), Available: true},
+		Ready:   true,
+	}
+	srv := &Server{
+		assets:  testAssets(),
+		version: "test",
+		config:  Config{RootDir: dir, Tools: tools},
+		media:   make(map[string]MediaEntry),
+		cache:   make(map[string][]byte),
+		compat:  make(map[string]string),
+	}
+
+	if !srv.needsCompatibleProxyFor(videoPath, nil) {
+		t.Fatal("HEVC file must need the proxy when the client declares no capabilities")
+	}
+	if !srv.needsCompatibleProxyFor(videoPath, []string{"h264"}) {
+		t.Fatal("HEVC file must still need the proxy when the client only decodes h264")
+	}
+	if srv.needsCompatibleProxyFor(videoPath, []string{"hevc"}) {
+		t.Fatal("HEVC file must NOT need the proxy when the client decodes hevc natively")
+	}
+	if srv.needsCompatibleProxyFor(videoPath, []string{"HEVC"}) {
+		t.Fatal("capability matching must be case-insensitive")
+	}
+}

@@ -43,13 +43,22 @@ function createLocalBrowser(options) {
   }
 
   async function selectFile(item) {
-    const media = await api.post('/api/media/register', { path: item.path });
     const video = document.getElementById(target.videoId);
     const input = document.getElementById(target.inputId);
     const key = target.videoId === 'videoA' ? 'A' : 'B';
     const cacheDot = document.getElementById('cache' + key);
+    setMediaLoading(video, 'busy', 'Preparing…');
+    let media;
+    try {
+      media = await api.registerMedia(item.path);
+    } catch (error) {
+      setMediaLoading(video, 'error', 'Failed to load');
+      console.warn('Media registration failed:', error);
+      return;
+    }
     input.value = media.path;
     input.dispatchEvent(new Event('input', { bubbles: true }));
+    armSpinnerOnLoaded(video, 'Loading…');
     video.src = media.url;
     video.preload = 'auto';
     video.removeAttribute('data-object-url');

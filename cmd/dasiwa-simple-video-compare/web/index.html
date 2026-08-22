@@ -54,9 +54,11 @@
     <section class="viewer side-mode" id="viewer">
       <div class="video-panel panel-a">
         <video id="videoA" playsinline preload="auto"></video>
+        <div class="media-loading" id="loadingA" aria-hidden="true"><div class="spinner"></div><div class="loading-label"></div></div>
       </div>
       <div class="video-panel panel-b">
         <video id="videoB" playsinline muted preload="auto"></video>
+        <div class="media-loading" id="loadingB" aria-hidden="true"><div class="spinner"></div><div class="loading-label"></div></div>
       </div>
       <button id="sliderHandle" class="slider-handle" type="button" aria-label="Move comparison split"></button>
       <div class="video-details-overlay" id="detailsOverlay" hidden>

@@ -17,7 +17,12 @@ import (
 )
 
 type registerMediaRequest struct {
-	Path string `json:"path"`
+	// Path is the source file on disk. Capabilities lists the codecs the
+	// requesting client can decode natively (e.g. "av1", "hevc"); when the
+	// source codec is in this list the server serves it directly and skips
+	// the H.264 proxy entirely.
+	Path         string   `json:"path"`
+	Capabilities []string `json:"capabilities,omitempty"`
 }
 
 type cacheMediaRequest struct {
@@ -42,7 +47,7 @@ func (s *Server) handleRegisterMedia(w http.ResponseWriter, r *http.Request) {
 	}
 
 	entry := MediaEntry{ID: mediaID(path), Name: filepath.Base(path), Path: path, Compatible: true}
-	if s.needsCompatibleProxy(path) {
+	if s.needsCompatibleProxyFor(path, req.Capabilities) {
 		compatiblePath, err := s.ensureCompatibleMedia(entry.ID, path)
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
@@ -162,11 +167,40 @@ func (s *Server) probeFirstVideoCodec(path string) string {
 }
 
 func (s *Server) needsCompatibleProxy(path string) bool {
+	return s.needsCompatibleProxyFor(path, nil)
+}
+
+// needsCompatibleProxyFor reports whether the source file must be transcoded
+// to the browser-friendly H.264 proxy. It returns true only when the source's
+// first video codec is one browsers often cannot handle natively (HEVC, VP9,
+// AV1) AND the client did not report that it can decode that codec on its own.
+// When the client declares native support for the source codec we serve the
+// file directly and skip the transcode.
+func (s *Server) needsCompatibleProxyFor(path string, clientCaps []string) bool {
 	if !s.config.Tools.FFprobe.Available || s.config.Tools.FFprobe.Path == "" || !s.config.Tools.FFmpeg.Available || s.config.Tools.FFmpeg.Path == "" {
 		return false
 	}
 	codec := strings.ToLower(strings.TrimSpace(s.probeFirstVideoCodec(path)))
-	return codec == "hevc" || codec == "h265" || codec == "vp9" || codec == "av1"
+	if !isBrowserHostileCodec(codec) {
+		return false
+	}
+	for _, cap := range clientCaps {
+		if strings.EqualFold(strings.TrimSpace(cap), codec) {
+			return false
+		}
+	}
+	return true
+}
+
+// isBrowserHostileCodec lists video codecs that most browser <video> elements
+// cannot decode without native hardware/software support. H.264 is deliberately
+// omitted: it is the universal baseline and the proxy target.
+func isBrowserHostileCodec(codec string) bool {
+	switch codec {
+	case "hevc", "h265", "vp9", "av1":
+		return true
+	}
+	return false
 }
 
 func (s *Server) ensureCompatibleMedia(id, sourcePath string) (string, error) {

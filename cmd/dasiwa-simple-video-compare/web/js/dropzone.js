@@ -20,6 +20,33 @@ function wireDropZone(card, input, video, otherTarget) {
   });
 }
 
+// Loading spinner for a video panel: pass state 'busy' (optionally with a
+// label) to show it, 'error' to show the failure hint, or null to hide it.
+// Used by dropzone.js and filebrowser.js while media is registered,
+// transcoded on the server, or fetched into the <video> element.
+function setMediaLoading(video, state, label) {
+  const panel = video.closest('.video-panel');
+  const el = panel && panel.querySelector('.media-loading');
+  if (!el) return;
+  const labelEl = el.querySelector('.loading-label');
+  if (state) {
+    el.classList.add('busy');
+    el.classList.toggle('error', state === 'error');
+    labelEl.textContent = label || '';
+  } else {
+    el.classList.remove('busy', 'error');
+    labelEl.textContent = '';
+  }
+}
+
+// Show the spinner with a label and keep it up until the <video> element
+// reports loadedmetadata (or an error event, which shows the error state).
+function armSpinnerOnLoaded(video, label) {
+  setMediaLoading(video, 'busy', label || 'Loading…');
+  video.addEventListener('loadedmetadata', () => setMediaLoading(video, null), { once: true });
+  video.addEventListener('error', () => setMediaLoading(video, 'error', 'Failed to load'), { once: true });
+}
+
 async function loadDroppedVideo(file, input, video) {
   const oldUrl = video.dataset.objectUrl;
   if (oldUrl) URL.revokeObjectURL(oldUrl);
@@ -27,8 +54,10 @@ async function loadDroppedVideo(file, input, video) {
   input.value = localPath || file.name;
   input.dispatchEvent(new Event('input', { bubbles: true }));
   if (localPath) {
+    setMediaLoading(video, 'busy', 'Preparing…');
     try {
-      const media = await api.post('/api/media/register', { path: localPath });
+      const media = await api.registerMedia(localPath);
+      armSpinnerOnLoaded(video, 'Loading…');
       video.src = media.url;
       video.preload = 'auto';
       video.removeAttribute('data-object-url');
@@ -39,6 +68,7 @@ async function loadDroppedVideo(file, input, video) {
     }
   }
   const url = URL.createObjectURL(file);
+  armSpinnerOnLoaded(video, 'Loading…');
   video.src = url;
   video.preload = 'auto';
   video.dataset.objectUrl = url;
