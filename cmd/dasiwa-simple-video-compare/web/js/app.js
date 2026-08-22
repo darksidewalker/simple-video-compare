@@ -26,8 +26,14 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   wireDropZone(document.getElementById('dropA'), pathA, videoA, { input: pathB, video: videoB });
   wireDropZone(document.getElementById('dropB'), pathB, videoB, { input: pathA, video: videoA });
-  pathA.addEventListener('input', checkAnyLoaded);
-  pathB.addEventListener('input', checkAnyLoaded);
+  // A hand-typed / pasted path is probed and played directly, so drop any
+  // stale "played via proxy" marker the slot may still carry.
+  const onPathInput = (input) => event => {
+    if (event.isTrusted) input.target.dataset.viaProxy = '';
+    checkAnyLoaded();
+  };
+  pathA.addEventListener('input', onPathInput(pathA));
+  pathB.addEventListener('input', onPathInput(pathB));
   videoA.addEventListener('loadedmetadata', () => updatePanelAspect(videoA));
   videoB.addEventListener('loadedmetadata', () => updatePanelAspect(videoB));
   document.getElementById('browseA').addEventListener('click', () => localBrowser.open({ videoId: 'videoA', inputId: 'pathA' }));
@@ -315,6 +321,13 @@ function renderDetailPanel(key, data) {
   html += `<span class="badge">${key}</span>`;
   html += `<strong>${f.filename || 'Unknown'}</strong>`;
   html += `</div>`;
+
+  // Explain that the <video> element plays a server-transcoded proxy while
+  // this panel describes the original source file.
+  const sourceInput = document.getElementById('path' + key);
+  if (sourceInput && sourceInput.dataset.viaProxy) {
+    html += `<div class="detail-proxy-note" title="${escapeHTML(sourceInput.dataset.viaProxy)}">⚡ Played via ${escapeHTML(sourceInput.dataset.viaProxy)} — details below describe the source file</div>`;
+  }
 
   // Format section
   html += `<div class="detail-section"><div class="detail-section-title">Format</div>`;

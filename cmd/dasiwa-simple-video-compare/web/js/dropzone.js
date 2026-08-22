@@ -51,12 +51,16 @@ async function loadDroppedVideo(file, input, video) {
   const oldUrl = video.dataset.objectUrl;
   if (oldUrl) URL.revokeObjectURL(oldUrl);
   const localPath = file.path || file.webkitRelativePath || '';
+  // The input always holds the source file the user picked: Details probes
+  // that, and the topbar shows a real filename instead of a /tmp proxy path.
   input.value = localPath || file.name;
+  input.dataset.viaProxy = '';
   input.dispatchEvent(new Event('input', { bubbles: true }));
   if (localPath) {
     setMediaLoading(video, 'busy', 'Preparing…');
     try {
       const media = await api.registerMedia(localPath);
+      markProxySource(input, media.path, localPath);
       armSpinnerOnLoaded(video, 'Loading…');
       video.src = media.url;
       video.preload = 'auto';
@@ -73,4 +77,14 @@ async function loadDroppedVideo(file, input, video) {
   video.preload = 'auto';
   video.dataset.objectUrl = url;
   video.load();
+}
+
+// Note in the Details panel that playback runs through a server-side H.264
+// proxy, i.e. the <video> element plays a different file than the one shown
+// in the input. Without this the Details panel would silently describe the
+// source while the viewer shows the transcode.
+function markProxySource(input, mediaPath, sourcePath) {
+  input.dataset.viaProxy = mediaPath && mediaPath !== sourcePath ? 'H.264 proxy' : '';
+  const state = window.videoDetailsState;
+  if (state && state.detailsVisible) renderAllDetails();
 }

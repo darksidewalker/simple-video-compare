@@ -395,6 +395,15 @@ video { display: block; width: 100%; height: 100%; max-height: clamp(520px, calc
 }
 .detail-header .badge { font-size: 10px; padding: 2px 6px; }
 .detail-header strong { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.detail-proxy-note {
+  color: var(--amber);
+  font-size: 11px;
+  margin-bottom: 8px;
+  padding: 5px 8px;
+  border: 1px solid rgba(255, 191, 61, 0.28);
+  border-radius: 8px;
+  background: rgba(255, 191, 61, 0.08);
+}
 .detail-section {
   margin-bottom: 10px;
 }

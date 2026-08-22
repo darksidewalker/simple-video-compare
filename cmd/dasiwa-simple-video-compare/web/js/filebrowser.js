@@ -56,8 +56,9 @@ function createLocalBrowser(options) {
       console.warn('Media registration failed:', error);
       return;
     }
-    input.value = media.path;
+    input.value = item.path;
     input.dispatchEvent(new Event('input', { bubbles: true }));
+    markProxySource(input, media.path, item.path);
     armSpinnerOnLoaded(video, 'Loading…');
     video.src = media.url;
     video.preload = 'auto';
