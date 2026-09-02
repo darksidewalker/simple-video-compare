@@ -80,4 +80,6 @@ The binaries are pure Go (CGO off) and embed the web interface; at runtime they 
 
 ## License
 
-Proprietary development as part of DaSiWa Tooling.
+GNU General Public License, version 3 (or any later version) — see [LICENSE](LICENSE).
+
+DaSiWa Simple Video Compare depends on ffmpeg/ffprobe at runtime. The bundled downloader fetches the GPL builds from BtbN/FFmpeg-Builds, which are themselves GPLv3+ licensed; this is consistent with the license of this project.
