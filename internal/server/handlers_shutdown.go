@@ -13,10 +13,10 @@ func HandleShutdown(w http.ResponseWriter, r *http.Request) {
 	}
 
 	fmt.Println("DaSiWa Simple Video Compare shutting down via Quit button...")
-	
+
 	w.WriteHeader(http.StatusOK)
 	fmt.Fprint(w, "OK")
-	
+
 	// Trigger immediate exit after response
 	go func() {
 		os.Exit(0)

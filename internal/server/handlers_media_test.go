@@ -57,7 +57,7 @@ func TestRegisterMediaTranscodesHevcWhenCodecProbeWorks(t *testing.T) {
 		FFprobe: media.Tool{Name: "ffprobe", Path: filepath.Join(dir, "ffprobe"), Available: true},
 		Ready:   true,
 	}
-	handler := NewWithConfig(testAssets(), "test", Config{RootDir: dir, Tools: tools})
+	handler := NewWithConfig(testAssets(), "test", Config{RootDir: dir, ToolsInfo: tools})
 
 	data, err := json.Marshal(map[string]string{"path": videoPath})
 	if err != nil {
@@ -96,7 +96,7 @@ func TestProbeFirstVideoCodecIgnoresNonVideoStreams(t *testing.T) {
 	srv := &Server{
 		assets:  testAssets(),
 		version: "test",
-		config:  Config{RootDir: dir, Tools: tools},
+		config:  Config{RootDir: dir, ToolsInfo: tools},
 		media:   make(map[string]MediaEntry),
 		cache:   make(map[string][]byte),
 		compat:  make(map[string]string),
@@ -145,7 +145,7 @@ func TestNeedsCompatibleProxyHonorsClientCapabilities(t *testing.T) {
 	srv := &Server{
 		assets:  testAssets(),
 		version: "test",
-		config:  Config{RootDir: dir, Tools: tools},
+		config:  Config{RootDir: dir, ToolsInfo: tools},
 		media:   make(map[string]MediaEntry),
 		cache:   make(map[string][]byte),
 		compat:  make(map[string]string),

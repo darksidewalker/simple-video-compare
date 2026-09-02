@@ -144,7 +144,7 @@ func mediaID(path string) string {
 // the codec line more than once for certain container files, which broke the
 // exact-string comparison the compatibility proxy relies on.
 func (s *Server) probeFirstVideoCodec(path string) string {
-	cmd := exec.Command(s.config.Tools.FFprobe.Path, "-v", "error", "-select_streams", "v:0", "-show_streams", "-of", "json", path)
+	cmd := exec.Command(s.config.Tools().FFprobe.Path, "-v", "error", "-select_streams", "v:0", "-show_streams", "-of", "json", path)
 	output, err := cmd.Output()
 	if err != nil {
 		return ""
@@ -177,7 +177,8 @@ func (s *Server) needsCompatibleProxy(path string) bool {
 // When the client declares native support for the source codec we serve the
 // file directly and skip the transcode.
 func (s *Server) needsCompatibleProxyFor(path string, clientCaps []string) bool {
-	if !s.config.Tools.FFprobe.Available || s.config.Tools.FFprobe.Path == "" || !s.config.Tools.FFmpeg.Available || s.config.Tools.FFmpeg.Path == "" {
+	tools := s.config.Tools()
+	if !tools.FFprobe.Available || tools.FFprobe.Path == "" || !tools.FFmpeg.Available || tools.FFmpeg.Path == "" {
 		return false
 	}
 	codec := strings.ToLower(strings.TrimSpace(s.probeFirstVideoCodec(path)))
@@ -225,7 +226,7 @@ func (s *Server) ensureCompatibleMedia(id, sourcePath string) (string, error) {
 		return outPath, nil
 	}
 
-	cmd := exec.Command(s.config.Tools.FFmpeg.Path,
+	cmd := exec.Command(s.config.Tools().FFmpeg.Path,
 		"-y", "-i", sourcePath,
 		"-map", "0:v:0", "-map", "0:a?",
 		"-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-pix_fmt", "yuv420p",

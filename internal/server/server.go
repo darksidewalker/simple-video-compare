@@ -24,7 +24,7 @@ func New(assets fs.FS, version string) http.Handler {
 	if err != nil {
 		rootDir = "."
 	}
-	return NewWithConfig(assets, version, Config{RootDir: rootDir, Tools: media.ResolvePathTools()})
+	return NewWithConfig(assets, version, Config{RootDir: rootDir, ToolsInfo: media.ResolvePathTools()})
 }
 
 func NewWithConfig(assets fs.FS, version string, config Config) http.Handler {

@@ -12,32 +12,32 @@ type ProbeRequest struct {
 }
 
 type ProbeResponse struct {
-	Format   ProbeFormat   `json:"format"`
-	Streams  []ProbeStream `json:"streams"`
+	Format  ProbeFormat   `json:"format"`
+	Streams []ProbeStream `json:"streams"`
 }
 
 type ProbeFormat struct {
-	Filename string `json:"filename"`
+	Filename string  `json:"filename"`
 	Duration float64 `json:"duration"`
-	Size     int64  `json:"size"`
-	BitRate  int64  `json:"bit_rate"`
+	Size     int64   `json:"size"`
+	BitRate  int64   `json:"bit_rate"`
 }
 
 type ProbeStream struct {
-	Index       int    `json:"index"`
-	CodecType   string `json:"codec_type"`
-	CodecName   string `json:"codec_name"`
-	Width       int    `json:"width"`
-	Height      int    `json:"height"`
-	RFrameRate  string `json:"r_frame_rate"`
-	BitRate     int64  `json:"bit_rate"`
-	SampleRate  int    `json:"sample_rate"`
-	Channels    int    `json:"channels"`
-	Profile     string `json:"profile"`
-	ColorSpace  string `json:"color_space"`
-	ColorRange  string `json:"color_range"`
+	Index          int    `json:"index"`
+	CodecType      string `json:"codec_type"`
+	CodecName      string `json:"codec_name"`
+	Width          int    `json:"width"`
+	Height         int    `json:"height"`
+	RFrameRate     string `json:"r_frame_rate"`
+	BitRate        int64  `json:"bit_rate"`
+	SampleRate     int    `json:"sample_rate"`
+	Channels       int    `json:"channels"`
+	Profile        string `json:"profile"`
+	ColorSpace     string `json:"color_space"`
+	ColorRange     string `json:"color_range"`
 	ColorPrimaries string `json:"color_primaries"`
-	ColorTransfer string `json:"color_transfer"`
+	ColorTransfer  string `json:"color_transfer"`
 }
 
 func (s *Server) handleVideoProbe(w http.ResponseWriter, r *http.Request) {
@@ -57,8 +57,15 @@ func (s *Server) handleVideoProbe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Execute ffprobe command
-	cmd := exec.Command("ffprobe", "-v", "quiet", "-print_format", "json", "-show_format", "-show_streams", req.Path)
+	// Execute ffprobe command. Use the resolved ffprobe path (the app-local
+	// directory may hold it; a bare "ffprobe" only resolves via PATH and
+	// misses app-local installs, e.g. on Windows).
+	tools := s.config.Tools()
+	if !tools.FFprobe.Available || tools.FFprobe.Path == "" {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "ffprobe is not available"})
+		return
+	}
+	cmd := exec.Command(tools.FFprobe.Path, "-v", "quiet", "-print_format", "json", "-show_format", "-show_streams", req.Path)
 	output, err := cmd.Output()
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": fmt.Sprintf("ffprobe error: %v", err)})

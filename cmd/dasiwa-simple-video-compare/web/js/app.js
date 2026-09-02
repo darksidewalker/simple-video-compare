@@ -194,19 +194,97 @@ async function pingServer() {
 async function openRuntimeDialog() {
   const dialog = document.getElementById('runtimeDialog');
   const summary = document.getElementById('runtimeSummary');
+  const actions = document.getElementById('runtimeActions');
   summary.innerHTML = '<small>Loading…</small>';
+  actions.innerHTML = '';
   dialog.showModal();
   try {
     const runtime = await api.get('/api/runtime');
-    const ffmpeg = runtime.tools && runtime.tools.ready ? 'FFmpeg ready' : 'FFmpeg missing';
-    summary.innerHTML = `
-      <div style="display:flex;flex-direction:column;gap:6px;color:var(--muted);font-size:13px;">
-        <div><strong style="color:var(--text)">UX Mode:</strong> ${runtime.ux_mode || '—'}</div>
-        <div><strong style="color:var(--text)">FFmpeg:</strong> ${ffmpeg}</div>
-      </div>`;
+    if (runtime.tools && runtime.tools.ready) {
+      summary.innerHTML = `
+        <div style="display:flex;flex-direction:column;gap:6px;color:var(--muted);font-size:13px;">
+          <div><strong style="color:var(--text)">UX Mode:</strong> ${runtime.ux_mode || '—'}</div>
+          <div><strong style="color:var(--text)">FFmpeg:</strong> <span style="color:var(--green)">ready</span></div>
+          ${runtime.tools.ffmpeg.path ? `<div style="font-size:12px;">${runtime.tools.ffmpeg.path}</div>` : ''}
+          ${runtime.tools.ffprobe.path ? `<div style="font-size:12px;">${runtime.tools.ffprobe.path}</div>` : ''}
+        </div>`;
+      return;
+    }
+    // FFmpeg missing: show status plus the two install options.
+    const parts = [
+      `<div><strong style="color:var(--text)">UX Mode:</strong> ${runtime.ux_mode || '—'}</div>`,
+      `<div><strong style="color:var(--text)">FFmpeg:</strong> <span style="color:var(--red)">missing</span> (ffmpeg/ffprobe not found on PATH)</div>`,
+    ];
+    if (runtime.ffmpeg_dir) {
+      parts.push(`<div style="font-size:12px;">App folder: ${runtime.ffmpeg_dir}</div>`);
+    }
+    if (runtime.ffmpeg_manual) {
+      parts.push(`<div style="font-size:12px;">${runtime.ffmpeg_manual}</div>`);
+    }
+    summary.innerHTML = `<div style="display:flex;flex-direction:column;gap:6px;color:var(--muted);font-size:13px;">${parts.join('')}</div>`;
+
+    const installBtn = document.createElement('button');
+    installBtn.type = 'button';
+    installBtn.className = 'primary';
+    if (runtime.ffmpeg_download) {
+      installBtn.textContent = 'Download standalone build';
+      installBtn.addEventListener('click', () => installFFmpeg(installBtn));
+    } else {
+      installBtn.textContent = 'Verify installation…';
+      installBtn.addEventListener('click', () => verifyFFmpeg(installBtn));
+    }
+    const verifyBtn = document.createElement('button');
+    verifyBtn.type = 'button';
+    verifyBtn.textContent = 'Re-check…';
+    verifyBtn.addEventListener('click', () => verifyFFmpeg(verifyBtn));
+    actions.append(installBtn, verifyBtn);
   } catch {
     summary.innerHTML = '<small style="color:var(--red)">Runtime unavailable</small>';
   }
+}
+
+async function installFFmpeg(btn) {
+  btn.disabled = true;
+  const label = document.createElement('small');
+  label.style.color = 'var(--muted)';
+  label.textContent = 'Downloading… (this can take a few minutes)';
+  btn.after(label);
+  try {
+    const res = await api.post('/api/ffmpeg/install', {});
+    if (res.tools && res.tools.ready) {
+      label.textContent = `Installed into ${res.dir || 'the app folder'}`;
+      label.style.color = 'var(--green)';
+    } else {
+      label.textContent = 'Download finished, but the tools are still not detected.';
+      label.style.color = 'var(--amber)';
+    }
+  } catch (err) {
+    label.textContent = `Install failed: ${err.message}`;
+    label.style.color = 'var(--red)';
+  }
+  btn.disabled = false;
+}
+
+async function verifyFFmpeg(btn) {
+  btn.disabled = true;
+  const label = document.createElement('small');
+  label.style.color = 'var(--muted)';
+  label.textContent = 'Checking…';
+  btn.after(label);
+  try {
+    const res = await api.post('/api/ffmpeg/verify', {});
+    if (res.tools && res.tools.ready) {
+      label.textContent = 'FFmpeg detected.';
+      label.style.color = 'var(--green)';
+    } else {
+      label.textContent = 'Still not found. Place ffmpeg/ffprobe in the app folder or on PATH, then re-check.';
+      label.style.color = 'var(--amber)';
+    }
+  } catch (err) {
+    label.textContent = `Check failed: ${err.message}`;
+    label.style.color = 'var(--red)';
+  }
+  btn.disabled = false;
 }
 
 async function loadAllProbes() {

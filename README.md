@@ -2,46 +2,57 @@
 
 ![Preview](assets/preview.png)
 
-Ein natives Desktop-Tool zum seitlichen Vergleich zweier lokaler Videodateien. Die Wiedergabe läuft über libmpv/FFmpeg statt über ein Browser-`<video>`-Element und ist daher nicht auf Browser-Codecs beschränkt.
+A tool for comparing two local video files side by side in a browser window. Files play through the browser's `<video>` element; for codecs a browser cannot decode (HEVC, AV1, VP9), the local server transcodes a compatibility proxy with ffmpeg.
 
 ## Features
 
-- Standalone-UX: Eigenes Desktop-Fenster, kein Browser und kein lokaler Webserver im Standardmodus
-- libmpv-Wiedergabe: Decoder, Demuxer, Untertitel und Hardwarebeschleunigung aus der lokalen mpv/FFmpeg-Installation
-- Synchroner Vergleich: Zwei unabhängige native Player, gemeinsame Wiedergabe, Seek und expliziter Sync
-- Lokale Datei-Auswahl: Native Dateidialoge oder Datei-Drop direkt auf die linke/rechte Videohälfte; zwei gleichzeitig gedroppte Dateien belegen A und B
-- Web-UI: Die Weboberfläche läuft als eingebetteter lokaler HTTP-Server (Port 1420, `DAWVC_PORT` möglich)
-- Browser-Autostart: Bei Start mit grafischer Umgebung öffnet sich die Weboberfläche automatisch im Standardbrowser; `--no-browser` deaktiviert das
-- Plattform: Windows, Linux und macOS (amd64) — reine Go-Binaries ohne externe Laufzeitabhängigkeiten (nur ffmpeg/ffprobe)
+- Standalone UX: single binary, the web interface opens in the default browser (opt-out with `--no-browser`)
+- Browser playback with an ffmpeg-based H.264 compatibility proxy, so HEVC/AV1/VP9 sources play in browsers that cannot decode them natively
+- Self-contained ffmpeg: if ffmpeg/ffprobe are missing, the app can download a pinned standalone build into the app folder (or the user installs them manually)
+- Local file selection: built-in file browser, file drop directly onto the left/right video pane, or paste a path; two files dropped at once fill A and B
+- Web UI: the web interface runs as an embedded local HTTP server (port 1420, `DAWVC_PORT` to override)
+- Browser auto-start: when started in a graphical environment, the web interface opens automatically in the default browser; `--no-browser` disables this
+- Platforms: Windows, Linux and macOS (amd64) — pure Go binaries with no external runtime dependencies (only ffmpeg/ffprobe)
 
-## Voraussetzungen
+## Requirements
 
-- Go 1.25 oder neuer (zum Bauen)
-- Linux/macOS/Windows: ffmpeg und ffprobe auf dem System (für Details-Panel und H.264-Proxy)
+- Go 1.25 or newer (to build)
+- ffmpeg and ffprobe at runtime (details panel, codec probe, and the H.264 compatibility proxy for browser playback of HEVC/AV1/VP9 sources)
 
-Alle drei Plattformen werden als reine Go-Binaries gebaut (CGO aus, keine libmpv-Verlinkung):
+If ffmpeg/ffprobe are not found, the app does **not** fail. It detects them in this order on every check:
+
+1. `DAWVC_FFMPEG` / `DAWVC_FFPROBE` environment variable (absolute path, or a name resolved via `PATH`/`PATHEXT`)
+2. The app folder (next to the executable) — where the built-in installer downloads standalone builds
+3. The system `PATH`
+
+Open the **Runtime** dialog in the web UI when the tools are missing. It offers two choices:
+
+- **Download standalone build** — fetches a pinned static build (BtbN/FFmpeg-Builds) and places `ffmpeg`/`ffprobe` next to the executable. Available on Linux and Windows; on macOS there is no pinned official build, so use the manual option.
+- **Re-check** / install on your own — install via your package manager (or `brew` on macOS), or drop `ffmpeg`/`ffprobe` into the app folder (shown in the dialog), then re-check. No restart needed.
+
+All three platforms build as pure Go binaries (CGO off, no libmpv linkage):
 
 ```bash
-./build.sh            # Linux, macOS und Windows in einem Durchgang
+./build.sh            # Linux, macOS and Windows in one pass
 ```
 
-Die fertigen Binaries liegen im Repository-Wurzelverzeichnis:
+The ready binaries live in the repository root:
 
-| Datei | Plattform | Start |
+| File | Platform | Launch |
 |---|---|---|
 | `dasiwa-simple-video-compare-linux-amd64` | Linux | `./dasiwa-simple-video-compare-linux-amd64` |
 | `dasiwa-simple-video-compare-darwin-amd64` | macOS (Intel) | `./dasiwa-simple-video-compare-darwin-amd64` |
 | `dasiwa-simple-video-compare-windows-amd64.exe` | Windows | `dasiwa-simple-video-compare-windows-amd64.exe` |
 
-## Schnellstart
+## Quick start
 
-Die Web-UI starten (öffnet bei Start automatisch im Standardbrowser):
+Start the web UI (opens in the default browser on start):
 
 ```bash
 go run ./cmd/dasiwa-simple-video-compare
 ```
 
-Ohne Browserfenster öffnen (z. B. als Daemon):
+Without opening a browser window (e.g. as a daemon):
 
 ```bash
 go run ./cmd/dasiwa-simple-video-compare --no-browser
@@ -53,26 +64,25 @@ go run ./cmd/dasiwa-simple-video-compare --no-browser
 go build -ldflags="-s -w" -o dasiwa-simple-video-compare-linux-amd64 ./cmd/dasiwa-simple-video-compare
 ```
 
-Die Binaries benötigen zur Laufzeit nur das System und `ffmpeg`/`ffprobe`; die Weboberfläche ist eingebettet.
+The binaries only need the system and `ffmpeg`/`ffprobe` at runtime; the web interface is embedded.
 
-## Projektstruktur
+## Project structure
 
 ```
 ├── cmd/dasiwa-simple-video-compare/
-│   ├── main.go              # Einstiegspunkt für die Desktop-UX
-│   └── web/                 # Eingebettete Assets für den optionalen Browsermodus
+│   ├── main.go              # Entry point for the desktop UX
+│   └── web/                 # Embedded assets for the optional browser mode
 ├── internal/
-│   ├── player/              # libmpv-basierte native Video-Renderer
-│   ├── media/               # FFmpeg/FFprobe-Werkzeugerkennung
-│   └── server/              # HTTP-Server für den optionalen Browsermodus
-├── assets/                  # Projekt-Assets (Screenshots, Icons)
-└── go.mod                   # Go-Moduldefinition
+│   ├── media/               # ffmpeg/ffprobe resolution, standalone installer
+│   └── server/              # Embedded local HTTP server
+├── assets/                  # Project assets (screenshots, icons)
+└── go.mod                   # Go module definition
 ```
 
-Die fertigen Plattform-Binaries liegen direkt im Wurzelverzeichnis.
+The ready platform binaries live directly in the root directory.
 
-Der Browsermodus stellt weiterhin die bisherigen lokalen HTTP-Endpunkte bereit.
+Browser mode continues to serve the previous local HTTP endpoints.
 
-## Lizenz
+## License
 
-Eigenentwicklung im Rahmen von DaSiWa Tooling.
+Proprietary development as part of DaSiWa Tooling.

@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"syscall"
@@ -48,9 +49,17 @@ func main() {
 	// suppressStderr guards the server construction; see stderr_redirect_*.go
 	// for the platform-specific implementation.
 	suppressed := suppressStderr()
+
+	// Standalone ffmpeg/ffprobe installs live next to the executable so the
+	// app works even on systems without the tools on PATH (e.g. fresh
+	// Windows). If the exe can't be located we fall back to the current
+	// working directory.
+	appLocalDir := appDir()
+	installer := media.NewDownloadInstaller(appLocalDir)
 	srv := server.NewWithConfig(assets, "0.2.0-tauri", server.Config{
 		RootDir:          rootDir,
-		Tools:            media.ResolvePathTools(),
+		ToolsInfo:        media.ResolvePathTools(),
+		Installer:        installer,
 		MaxRAMCacheBytes: 2 << 30,
 	})
 	suppressed()
@@ -90,6 +99,19 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	_ = httpServer.Shutdown(ctx)
+}
+
+// appDir returns the directory the app-local ffmpeg/ffprobe binaries are
+// downloaded into: next to the executable when it can be located, the user's
+// home directory otherwise.
+func appDir() string {
+	if exe, err := os.Executable(); err == nil {
+		return filepath.Dir(exe)
+	}
+	if home, err := os.UserHomeDir(); err == nil {
+		return home
+	}
+	return "."
 }
 
 // shouldOpenBrowser reports whether auto-opening a browser makes sense in the

@@ -23,7 +23,7 @@ func TestBrowseFilesReturnsLocalVideoFiles(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	handler := NewWithConfig(testAssets(), "test", Config{RootDir: dir, Tools: media.Tools{}})
+	handler := NewWithConfig(testAssets(), "test", Config{RootDir: dir, ToolsInfo: media.Tools{}})
 	req := httptest.NewRequest(http.MethodGet, "/api/browse?path="+dir, nil)
 	rec := httptest.NewRecorder()
 
@@ -57,7 +57,7 @@ func TestRegisterMediaReturnsPlayableLocalURL(t *testing.T) {
 	dir := t.TempDir()
 	videoPath := filepath.Join(dir, "clip #1 + final.mkv")
 	mustWrite(t, videoPath, "video")
-	handler := NewWithConfig(testAssets(), "test", Config{RootDir: dir, Tools: media.Tools{}})
+	handler := NewWithConfig(testAssets(), "test", Config{RootDir: dir, ToolsInfo: media.Tools{}})
 	data, err := json.Marshal(map[string]string{"path": videoPath})
 	if err != nil {
 		t.Fatal(err)
@@ -88,7 +88,7 @@ func TestRegisterMediaReturnsPlayableLocalURL(t *testing.T) {
 func TestRuntimeIncludesLocalUXAndFFmpegStatus(t *testing.T) {
 	handler := NewWithConfig(testAssets(), "test", Config{
 		RootDir: t.TempDir(),
-		Tools: media.Tools{
+		ToolsInfo: media.Tools{
 			FFmpeg:  media.Tool{Name: "ffmpeg", Path: "/bin/ffmpeg", Available: true},
 			FFprobe: media.Tool{Name: "ffprobe", Path: "/bin/ffprobe", Available: true},
 			Ready:   true,
@@ -118,7 +118,7 @@ func TestCacheMediaLoadsSmallVideoIntoRAMAndServesFromCache(t *testing.T) {
 	dir := t.TempDir()
 	videoPath := filepath.Join(dir, "clip.mp4")
 	mustWrite(t, videoPath, "cached-video")
-	handler := NewWithConfig(testAssets(), "test", Config{RootDir: dir, Tools: media.Tools{}, MaxRAMCacheBytes: 1024})
+	handler := NewWithConfig(testAssets(), "test", Config{RootDir: dir, ToolsInfo: media.Tools{}, MaxRAMCacheBytes: 1024})
 	entry := registerTestMedia(t, handler, videoPath)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/media/cache", strings.NewReader(`{"id":"`+entry.ID+`"}`))
@@ -155,7 +155,7 @@ func TestCacheMediaRejectsVideosLargerThanRAMLimit(t *testing.T) {
 	dir := t.TempDir()
 	videoPath := filepath.Join(dir, "big.mp4")
 	mustWrite(t, videoPath, "too-large")
-	handler := NewWithConfig(testAssets(), "test", Config{RootDir: dir, Tools: media.Tools{}, MaxRAMCacheBytes: 3})
+	handler := NewWithConfig(testAssets(), "test", Config{RootDir: dir, ToolsInfo: media.Tools{}, MaxRAMCacheBytes: 3})
 	entry := registerTestMedia(t, handler, videoPath)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/media/cache", strings.NewReader(`{"id":"`+entry.ID+`"}`))
