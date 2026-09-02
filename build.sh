@@ -9,16 +9,18 @@ build_for() {
     local target_os=$1
     local target_arch=$2
     local output_name="dasiwa-simple-video-compare-${target_os}-${target_arch}"
+    if [[ "${target_os}" == "windows" ]]; then
+        output_name="${output_name}.exe"
+    fi
     
     echo "Building for ${target_os}/${target_arch}..."
     
     export GOOS=${target_os}
     export GOARCH=${target_arch}
     
-    # Add CGO_ENABLED=0 for static binaries on Linux
-    if [[ "${target_os}" == "linux" ]]; then
-        export CGO_ENABLED=0
-    fi
+    # CGO stays off for every target: the binary is pure Go (no libmpv
+    # linkage), so all three platforms build without a C toolchain.
+    export CGO_ENABLED=0
     
     go build -ldflags="-s -w" -o "${output_name}" ./cmd/dasiwa-simple-video-compare/
     

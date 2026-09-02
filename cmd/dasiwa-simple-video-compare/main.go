@@ -45,17 +45,15 @@ func main() {
 		rootDir = "."
 	}
 
-	// Redirect stderr during server construction to suppress GTK/GDK protocol
-	// errors from go-mpv's libmpv rendering backend. These occur because libmpv
-	// is dynamically linked against GTK even when running headless (no window).
-	stderrBackup := os.Stderr
-	os.Stderr = os.NewFile(0, "/dev/null")
+	// suppressStderr guards the server construction; see stderr_redirect_*.go
+	// for the platform-specific implementation.
+	suppressed := suppressStderr()
 	srv := server.NewWithConfig(assets, "0.2.0-tauri", server.Config{
 		RootDir:          rootDir,
 		Tools:            media.ResolvePathTools(),
 		MaxRAMCacheBytes: 2 << 30,
 	})
-	os.Stderr = stderrBackup
+	suppressed()
 
 	// Bind the port ourselves so we know the server is accepting before we
 	// point the browser at it. No WriteTimeout: the compatibility proxy runs

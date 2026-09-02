@@ -109,8 +109,8 @@ function createLocalBrowser(options) {
   }
 
   function filepathParent(path) {
-    const trimmed = String(path || '').replace(/\/+$/, '');
-    const idx = trimmed.lastIndexOf('/');
+    const trimmed = String(path || '').replace(/[/\\]+$/, '');
+    const idx = Math.max(trimmed.lastIndexOf('/'), trimmed.lastIndexOf('\\'));
     if (idx <= 0) return '/';
     return trimmed.slice(0, idx);
   }

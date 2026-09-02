@@ -10,17 +10,28 @@ Ein natives Desktop-Tool zum seitlichen Vergleich zweier lokaler Videodateien. D
 - libmpv-Wiedergabe: Decoder, Demuxer, Untertitel und Hardwarebeschleunigung aus der lokalen mpv/FFmpeg-Installation
 - Synchroner Vergleich: Zwei unabhängige native Player, gemeinsame Wiedergabe, Seek und expliziter Sync
 - Lokale Datei-Auswahl: Native Dateidialoge oder Datei-Drop direkt auf die linke/rechte Videohälfte; zwei gleichzeitig gedroppte Dateien belegen A und B
-- Gebündeltes libmpv: Der Linux-Build legt `libmpv.so` neben das Binary und verwendet einen relativen Runtime-Pfad
 - Web-UI: Die Weboberfläche läuft als eingebetteter lokaler HTTP-Server (Port 1420, `DAWVC_PORT` möglich)
 - Browser-Autostart: Bei Start mit grafischer Umgebung öffnet sich die Weboberfläche automatisch im Standardbrowser; `--no-browser` deaktiviert das
+- Plattform: Windows, Linux und macOS (amd64) — reine Go-Binaries ohne externe Laufzeitabhängigkeiten (nur ffmpeg/ffprobe)
 
 ## Voraussetzungen
 
 - Go 1.25 oder neuer (zum Bauen)
-- libmpv inklusive Entwicklungsdateien auf dem Build-System
-- Linux-Beispiel: Paket `mpv` sowie das zugehörige Entwicklungs-Paket der Distribution
+- Linux/macOS/Windows: ffmpeg und ffprobe auf dem System (für Details-Panel und H.264-Proxy)
 
-Die gebauten Linux-Bundles enthalten `libmpv.so`; die übrigen dynamischen Basisbibliotheken des Zielsystems (z. B. libc, X11, Audio-/GPU-Treiber) bleiben absichtlich Systemabhängigkeiten.
+Alle drei Plattformen werden als reine Go-Binaries gebaut (CGO aus, keine libmpv-Verlinkung):
+
+```bash
+./build.sh            # Linux, macOS und Windows in einem Durchgang
+```
+
+Die fertigen Binaries liegen im Repository-Wurzelverzeichnis:
+
+| Datei | Plattform | Start |
+|---|---|---|
+| `dasiwa-simple-video-compare-linux-amd64` | Linux | `./dasiwa-simple-video-compare-linux-amd64` |
+| `dasiwa-simple-video-compare-darwin-amd64` | macOS (Intel) | `./dasiwa-simple-video-compare-darwin-amd64` |
+| `dasiwa-simple-video-compare-windows-amd64.exe` | Windows | `dasiwa-simple-video-compare-windows-amd64.exe` |
 
 ## Schnellstart
 
@@ -39,11 +50,10 @@ go run ./cmd/dasiwa-simple-video-compare --no-browser
 ## Build
 
 ```bash
-go build -o ./dasiwa-simple-video-compare-linux-amd64 ./cmd/dasiwa-simple-video-compare
-go build -o ./dist/dasiwa-simple-video-compare-linux-amd64 ./cmd/dasiwa-simple-video-compare
+go build -ldflags="-s -w" -o dasiwa-simple-video-compare-linux-amd64 ./cmd/dasiwa-simple-video-compare
 ```
 
-Die Linux-Binaries benötigen zur Laufzeit die Systembibliothek `libmpv.so`.
+Die Binaries benötigen zur Laufzeit nur das System und `ffmpeg`/`ffprobe`; die Weboberfläche ist eingebettet.
 
 ## Projektstruktur
 
@@ -56,9 +66,10 @@ Die Linux-Binaries benötigen zur Laufzeit die Systembibliothek `libmpv.so`.
 │   ├── media/               # FFmpeg/FFprobe-Werkzeugerkennung
 │   └── server/              # HTTP-Server für den optionalen Browsermodus
 ├── assets/                  # Projekt-Assets (Screenshots, Icons)
-├── dist/                    # Kompilierte Binaries
 └── go.mod                   # Go-Moduldefinition
 ```
+
+Die fertigen Plattform-Binaries liegen direkt im Wurzelverzeichnis.
 
 Der Browsermodus stellt weiterhin die bisherigen lokalen HTTP-Endpunkte bereit.
 

@@ -55,8 +55,12 @@ func cleanPath(value, fallback string) string {
 		value = fallback
 	}
 	if strings.HasPrefix(value, "~") {
+		rest := value[1:]
+		if strings.HasPrefix(rest, "/") || strings.HasPrefix(rest, `\`) {
+			rest = rest[1:]
+		}
 		if home, err := os.UserHomeDir(); err == nil {
-			value = filepath.Join(home, strings.TrimPrefix(value, "~"))
+			value = filepath.Join(home, rest)
 		}
 	}
 	if abs, err := filepath.Abs(value); err == nil {
