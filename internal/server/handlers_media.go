@@ -14,6 +14,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"dasiwa-simple-video-compare/internal/media"
 )
 
 type registerMediaRequest struct {
@@ -204,6 +206,34 @@ func isBrowserHostileCodec(codec string) bool {
 	return false
 }
 
+// encoder returns the video encoder to use for compatibility proxies. The
+// first call resolves it via media.DetectEncoder (honoring DAWVC_ENCODER and
+// probing for a working GPU encoder); the result is cached for the process.
+// Once markEncoderFallback has fired (a GPU encoder failed during a real
+// transcode), software is returned for the rest of the run.
+func (s *Server) videoEncoder() media.Encoder {
+	s.encoderOnce.Do(func() {
+		s.encoder = media.DetectEncoder(s.config.Tools().FFmpeg.Path)
+	})
+	if s.encoderSoftFallback.Load() {
+		return media.SoftwareEncoder()
+	}
+	return s.encoder
+}
+
+// markEncoderFallback switches the proxy to software after a GPU encoder
+// failed during a real transcode (e.g. the card was busy with another process
+// at that instant). DAWVC_ENCODER stays authoritative: if the user pinned an
+// encoder we do not second-guess it and say nothing.
+func (s *Server) markEncoderFallback() {
+	if s.encoderSoftFallback.Swap(true) {
+		return
+	}
+	if strings.TrimSpace(os.Getenv("DAWVC_ENCODER")) == "" {
+		fmt.Fprintln(os.Stderr, "dasiwa: hardware encoder failed, falling back to software (libx264)")
+	}
+}
+
 func (s *Server) ensureCompatibleMedia(id, sourcePath string) (string, error) {
 	s.mu.RLock()
 	if path, ok := s.compat[id]; ok {
@@ -226,16 +256,36 @@ func (s *Server) ensureCompatibleMedia(id, sourcePath string) (string, error) {
 		return outPath, nil
 	}
 
-	cmd := exec.Command(s.config.Tools().FFmpeg.Path,
+	enc := s.videoEncoder()
+	args := []string{
 		"-y", "-i", sourcePath,
 		"-map", "0:v:0", "-map", "0:a?",
-		"-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-pix_fmt", "yuv420p",
+		"-c:v", enc.Name,
+	}
+	args = append(args, enc.Args...)
+	args = append(args,
+		"-pix_fmt", "yuv420p",
 		"-c:a", "aac", "-b:a", "160k",
 		"-movflags", "+faststart",
 		outPath,
 	)
-	if output, err := cmd.CombinedOutput(); err != nil {
-		return "", fmt.Errorf("ffmpeg compatibility transcode failed: %v: %s", err, strings.TrimSpace(string(output)))
+	if output, err := exec.Command(s.config.Tools().FFmpeg.Path, args...).CombinedOutput(); err != nil {
+		// A one-time fallback to software so a single GPU hiccup does not
+		// break the whole session.
+		if enc.Name != media.SoftwareEncoder().Name {
+			s.markEncoderFallback()
+			args2 := make([]string, 0, len(args)+2)
+			args2 = append(args2, "-y", "-i", sourcePath, "-map", "0:v:0", "-map", "0:a?")
+			soft := media.SoftwareEncoder()
+			args2 = append(args2, "-c:v", soft.Name)
+			args2 = append(args2, soft.Args...)
+			args2 = append(args2, "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", outPath)
+			if output2, err2 := exec.Command(s.config.Tools().FFmpeg.Path, args2...).CombinedOutput(); err2 != nil {
+				return "", fmt.Errorf("ffmpeg compatibility transcode failed (hw %s: %v: %s; sw %v: %s)", enc.Name, err, strings.TrimSpace(string(output)), err2, strings.TrimSpace(string(output2)))
+			}
+		} else {
+			return "", fmt.Errorf("ffmpeg compatibility transcode failed: %v: %s", err, strings.TrimSpace(string(output)))
+		}
 	}
 
 	s.mu.Lock()

@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"dasiwa-simple-video-compare/internal/media"
@@ -27,10 +28,13 @@ func writeFakeFFprobe(t *testing.T, dir, codecName string) {
 
 // writeFakeFFmpeg writes an executable ffmpeg stand-in that succeeds and
 // creates the output file (the last argument) so ensureCompatibleMedia passes.
+// It also records its full argument list to <dir>/ffmpeg-args.txt so tests can
+// assert which encoder the proxy was invoked with.
 func writeFakeFFmpeg(t *testing.T, dir string) {
 	t.Helper()
 	script := "#!/bin/sh\nlast=\"\"\nfor a in \"$@\"; do last=\"$a\"; done\n" +
-		"echo transcoded > \"$last\"\n"
+		"echo transcoded > \"$last\"\n" +
+		"printf '%s\\n' \"$@\" > \"" + dir + "/ffmpeg-args.txt\"\n"
 	if err := os.WriteFile(filepath.Join(dir, "ffmpeg"), []byte(script), 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -162,5 +166,90 @@ func TestNeedsCompatibleProxyHonorsClientCapabilities(t *testing.T) {
 	}
 	if srv.needsCompatibleProxyFor(videoPath, []string{"HEVC"}) {
 		t.Fatal("capability matching must be case-insensitive")
+	}
+}
+
+// The compatibility proxy must honor the selected encoder. With
+// DAWVC_ENCODER pinned to a GPU encoder, the ffmpeg command must carry that
+// encoder's name and options (not the old hardcoded libx264/veryfast/crf).
+// This is the RED case: the proxy currently hardcodes libx264.
+func TestEnsureCompatibleMediaUsesSelectedEncoder(t *testing.T) {
+	dir := t.TempDir()
+	videoPath := filepath.Join(dir, "clip.mp4")
+	mustWrite(t, videoPath, "video")
+	writeFakeFFprobe(t, dir, "hevc")
+	writeFakeFFmpeg(t, dir)
+	t.Setenv("TMPDIR", t.TempDir())
+	t.Setenv("DAWVC_ENCODER", "nvenc")
+
+	tools := media.Tools{
+		FFmpeg:  media.Tool{Name: "ffmpeg", Path: filepath.Join(dir, "ffmpeg"), Available: true},
+		FFprobe: media.Tool{Name: "ffprobe", Path: filepath.Join(dir, "ffprobe"), Available: true},
+		Ready:   true,
+	}
+	srv := &Server{
+		assets:  testAssets(),
+		version: "test",
+		config:  Config{RootDir: dir, ToolsInfo: tools},
+		media:   make(map[string]MediaEntry),
+		cache:   make(map[string][]byte),
+		compat:  make(map[string]string),
+	}
+
+	out, err := srv.ensureCompatibleMedia(mediaID(videoPath), videoPath)
+	if err != nil {
+		t.Fatalf("ensureCompatibleMedia failed: %v", err)
+	}
+	if filepath.Base(out) == "clip.mp4" {
+		t.Fatalf("expected a proxy path, got the source: %s", out)
+	}
+	argsBytes, err := os.ReadFile(filepath.Join(dir, "ffmpeg-args.txt"))
+	if err != nil {
+		t.Fatalf("ffmpeg was never invoked (no args log): %v", err)
+	}
+	args := string(argsBytes)
+	if !strings.Contains(args, "h264_nvenc") {
+		t.Fatalf("expected ffmpeg args to contain h264_nvenc (DAWVC_ENCODER=nvenc), got:\n%s", args)
+	}
+	if !strings.Contains(args, "p4") || !strings.Contains(args, "18") {
+		t.Fatalf("expected nvenc args (-preset p4 ... -cq 18), got:\n%s", args)
+	}
+}
+
+// A pinned software encoder must also flow through (regression guard that the
+// encoder selection is not always-GPU).
+func TestEnsureCompatibleMediaUsesSoftwareWhenPinned(t *testing.T) {
+	dir := t.TempDir()
+	videoPath := filepath.Join(dir, "clip.mp4")
+	mustWrite(t, videoPath, "video")
+	writeFakeFFprobe(t, dir, "hevc")
+	writeFakeFFmpeg(t, dir)
+	t.Setenv("TMPDIR", t.TempDir())
+	t.Setenv("DAWVC_ENCODER", "x264")
+
+	tools := media.Tools{
+		FFmpeg:  media.Tool{Name: "ffmpeg", Path: filepath.Join(dir, "ffmpeg"), Available: true},
+		FFprobe: media.Tool{Name: "ffprobe", Path: filepath.Join(dir, "ffprobe"), Available: true},
+		Ready:   true,
+	}
+	srv := &Server{
+		assets:  testAssets(),
+		version: "test",
+		config:  Config{RootDir: dir, ToolsInfo: tools},
+		media:   make(map[string]MediaEntry),
+		cache:   make(map[string][]byte),
+		compat:  make(map[string]string),
+	}
+
+	if _, err := srv.ensureCompatibleMedia(mediaID(videoPath), videoPath); err != nil {
+		t.Fatalf("ensureCompatibleMedia failed: %v", err)
+	}
+	argsBytes, err := os.ReadFile(filepath.Join(dir, "ffmpeg-args.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	args := string(argsBytes)
+	if !strings.Contains(args, "libx264") || !strings.Contains(args, "veryfast") {
+		t.Fatalf("expected libx264 + -preset veryfast (DAWVC_ENCODER=x264), got:\n%s", args)
 	}
 }

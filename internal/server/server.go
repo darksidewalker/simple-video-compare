@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"sync"
+	"sync/atomic"
 
 	"dasiwa-simple-video-compare/internal/media"
 )
@@ -17,6 +18,12 @@ type Server struct {
 	media   map[string]MediaEntry
 	cache   map[string][]byte
 	compat  map[string]string
+	// encoder is lazily resolved on first use (see encoder()). Once a GPU
+	// encoder fails during a real transcode, encoderSoftFallback is set and
+	// encoder() returns the software encoder for the rest of the run.
+	encoder             media.Encoder
+	encoderOnce         sync.Once
+	encoderSoftFallback atomic.Bool
 }
 
 func New(assets fs.FS, version string) http.Handler {
