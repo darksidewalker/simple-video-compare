@@ -1,0 +1,16 @@
+# Redirect every wry in the dependency graph (tauri-runtime-wry,
+# tauri-build, ...) to the vendored copy in src-tauri/vendor/wry.
+#
+# The vendored 0.55.1 carries one patch in src/webkitgtk/drag_drop.rs:
+# the drag-drop state machine only accepted a drop while in the
+# "Leaving" state, i.e. only if a drag-leave signal arrived before
+# drag-drop. WebKitGTK3 (and on Wayland the KWin/other compositors)
+# frequently do NOT emit drag-leave when the cursor stays over the
+# webview, so released drops were silently cancelled and
+# DragDropEvent::Drop never reached the app — dropped videos were
+# never registered. The patch accepts the drop in Entered as well.
+#
+# Drop this whole table once wry ships the fix upstream: point
+# tauri back at the registry and delete src-tauri/vendor/.
+[patch.crates-io]
+wry = { path = "src-tauri/vendor/wry" }

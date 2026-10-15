@@ -1,59 +1,38 @@
-#!/bin/bash
+#!/usr/bin/env bash
+# Build the native desktop apps only: Linux and Windows (amd64).
 set -euo pipefail
+root=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+cd "$root"
+if [[ $# != 0 ]]; then
+  printf 'Usage: ./build.sh (native Linux and Windows desktop apps only)\n' >&2
+  exit 2
+fi
+if [[ $(uname -s) != Linux ]]; then
+  printf 'Use build.ps1 on Windows. macOS is not a release target.\n' >&2
+  exit 2
+fi
+export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-$root/.target}"
+mkdir -p "$CARGO_TARGET_DIR"
+CARGO_TARGET_DIR=$(cd "$CARGO_TARGET_DIR" && pwd)
+export CARGO_TARGET_DIR
+npm --prefix desktop ci
+npm --prefix desktop run build
 
-echo "Building DaSiWa Simple Video Compare..."
-cd "$(dirname "$0")"
-
-# Function to build for specific platform
-build_for() {
-    local target_os=$1
-    local target_arch=$2
-    local output_name="dasiwa-simple-video-compare-${target_os}-${target_arch}"
-    if [[ "${target_os}" == "windows" ]]; then
-        output_name="${output_name}.exe"
-    fi
-    
-    echo "Building for ${target_os}/${target_arch}..."
-    
-    export GOOS=${target_os}
-    export GOARCH=${target_arch}
-    
-    # CGO stays off for every target: the binary is pure Go (no libmpv
-    # linkage), so all three platforms build without a C toolchain.
-    export CGO_ENABLED=0
-    
-    go build -ldflags="-s -w" -o "${output_name}" ./cmd/dasiwa-simple-video-compare/
-    
-    echo "✓ Created: ${output_name}"
-    ls -lh "${output_name}"
-    echo ""
+build_desktop() {
+  local target=$1 out=$2
+  shift 2
+  cargo "$@" --manifest-path src-tauri/Cargo.toml --release --target "$target"
+  local src="$CARGO_TARGET_DIR/$target/release/dasiwa-simple-video-compare"
+  [[ "$target" == *windows* ]] && src="${src}.exe"
+  # Replace atomically so a running Linux instance can keep its existing inode.
+  cp -p "$src" "${out}.new"
+  mv -f "${out}.new" "$out"
+  printf 'Built %s\n' "$out"
 }
 
-# Build for all target platforms
-echo "=== Building for multiple platforms ==="
-echo ""
-
-# Linux builds
-build_for "linux" "amd64"
-
-# macOS builds
-build_for "darwin" "amd64"
-
-# Windows build
-build_for "windows" "amd64"
-
-echo "=== Build Summary ==="
-echo "Generated binaries:"
-ls -lh dasiwa-simple-video-compare-* 2>/dev/null | awk '{print $9, "(" $5 ")"}'
-
-echo ""
-echo "Usage:"
-echo "  Linux:   ./dasiwa-simple-video-compare-linux-amd64"
-echo "  macOS:   ./dasiwa-simple-video-compare-darwin-arm64"
-echo "  Windows: dasiwa-simple-video-compare-windows-amd64.exe"
-echo ""
-echo "Options:"
-echo "  --host HOST     Server host (default: 127.0.0.1)"
-echo "  --port PORT     Server port (default: 8765)"
-echo "  --no-open       Don't open browser automatically"
-echo "  --browser       Open in normal browser instead of app window"
+build_desktop x86_64-unknown-linux-gnu dasiwa-simple-video-compare-linux-amd64 build
+if command -v cargo-xwin >/dev/null 2>&1; then
+  build_desktop x86_64-pc-windows-msvc dasiwa-simple-video-compare-windows-amd64.exe xwin build
+else
+  printf 'Windows build skipped: install cargo-xwin and its Windows Rust target, or use build.ps1 on Windows.\n' >&2
+fi

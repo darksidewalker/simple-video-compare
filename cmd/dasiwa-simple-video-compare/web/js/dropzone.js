@@ -1,3 +1,51 @@
+// Tauri drag & drop: the OS delivers drops to the Rust shell (Rust-side
+// WindowEvent::DragDrop), which calls this with the cursor position (CSS
+// pixels) and, on drop, the absolute file paths. We route to the drop card
+// actually under the cursor via getBoundingClientRect — more robust than a
+// fixed split — and load through the normal loadDroppedVideo flow, which
+// registers the file with the Go server (H.264 proxy + Details probes).
+function dawvcCardAt(x, y) {
+  const cards = [document.getElementById('dropA'), document.getElementById('dropB')];
+  for (const card of cards) {
+    if (!card) continue;
+    const rect = card.getBoundingClientRect();
+    if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) return card;
+  }
+  return null;
+}
+
+window.__dawvcDragDrop = (action, x, y, paths) => {
+  const setDragging = (side, active) => {
+    const card = document.getElementById('drop' + side);
+    if (card) card.classList.toggle('dragging', active);
+  };
+  if (action === 'enter') {
+    const hit = dawvcCardAt(x, y);
+    const side = hit && hit.id === 'dropB' ? 'B' : 'A';
+    setDragging(side, true);
+    return;
+  }
+  if (action === 'leave') {
+    setDragging('A', false);
+    setDragging('B', false);
+    return;
+  }
+  if (action !== 'drop' || !Array.isArray(paths) || !paths.length) return;
+  const hit = dawvcCardAt(x, y);
+  const side = hit && hit.id === 'dropB' ? 'B' : 'A';
+  const otherSide = side === 'A' ? 'B' : 'A';
+  const load = (path, sideName) => {
+    const input = document.getElementById('path' + sideName);
+    const video = document.getElementById('video' + sideName);
+    if (!input || !video) return;
+    loadDroppedVideo({ path, name: path.split('/').pop() }, input, video);
+  };
+  load(paths[0], side);
+  if (paths.length > 1) load(paths[1], otherSide);
+  setDragging('A', false);
+  setDragging('B', false);
+};
+
 function wireDropZone(card, input, video, otherTarget) {
   const setHover = active => card.classList.toggle('dragging', active);
 
@@ -11,6 +59,11 @@ function wireDropZone(card, input, video, otherTarget) {
   card.addEventListener('drop', event => {
     event.preventDefault();
     setHover(false);
+    // Inside the native Tauri window, drops are delivered by the OS through the
+    // `tauri://drag-drop` event (handled via window.handleTauriDropEvent) with
+    // the real absolute path. Ignore the browser-level drop so we don't load
+    // the same file twice — the browser File object carries no usable path.
+    if (window.__TAURI__) return;
     const files = Array.from(event.dataTransfer.files || []);
     if (!files.length) return;
     loadDroppedVideo(files[0], input, video);

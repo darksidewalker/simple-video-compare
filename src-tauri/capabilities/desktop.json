@@ -1,0 +1,12 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "desktop-controls",
+  "description": "Local control desk: native file-drop events, display scale and quit.",
+  "windows": ["main"],
+  "permissions": [
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    "core:window:allow-scale-factor",
+    "core:window:allow-close"
+  ]
+}

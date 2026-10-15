@@ -1,3 +1,13 @@
 *.log
 .hermes/
 target/
+
+# Legacy build output
+bin/
+# Native desktop build output
+.target/
+src-tauri/gen/
+desktop/node_modules/
+desktop/dist/
+__pycache__/
+dist/dasiwa-simple-video-compare-native-*.tar.gz
