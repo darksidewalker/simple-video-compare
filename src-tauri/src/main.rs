@@ -2,6 +2,9 @@
 
 #[cfg(target_os = "linux")]
 mod embedded;
+#[cfg(windows)]
+#[path = "embedded_windows.rs"]
+mod embedded;
 mod native;
 use tauri::{Manager, RunEvent};
 
@@ -27,6 +30,12 @@ fn main() {
             #[cfg(target_os = "linux")]
             if let RunEvent::Ready = event {
                 embedded::install(app).expect("Linux embedded renderer initialization failed");
+            }
+            #[cfg(windows)]
+            if let RunEvent::Ready = event {
+                if let Err(error) = embedded::install(app) {
+                    eprintln!("Windows embedded renderer initialization failed: {error}");
+                }
             }
             if let RunEvent::Exit = event {
                 app.state::<native::NativeState>().shutdown();

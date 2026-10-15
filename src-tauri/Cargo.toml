@@ -1,6 +1,6 @@
 [package]
 name = "dasiwa-simple-video-compare"
-version = "0.2.0"
+version = "0.3.0"
 description = "DaSiWa Simple Video Compare - native desktop shell (Tauri 2)"
 authors = ["DaSiWa"]
 edition = "2021"
@@ -26,6 +26,10 @@ rfd = { version = "0.15", default-features = false, features = ["gtk3"] }
 gtk = "0.18"
 libloading = "0.8"
 libc = "0.2"
+
+[target.'cfg(windows)'.dependencies]
+libloading = "0.8"
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging", "Win32_UI_HiDpi", "Win32_System_LibraryLoader"] }
 
 [profile.release]
 codegen-units = 1

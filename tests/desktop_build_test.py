@@ -38,6 +38,21 @@ class DesktopBuildTests(unittest.TestCase):
         self.assertNotIn('rebuild: delete it first', shell)
         self.assertNotIn('rebuild: delete it first', ps)
 
+    def test_windows_embeds_library_and_uses_app_fullscreen(self):
+        main = (ROOT / 'src-tauri/src/main.rs').read_text()
+        native = (ROOT / 'src-tauri/src/native.rs').read_text()
+        renderer = (ROOT / 'src-tauri/src/embedded_windows.rs').read_text()
+        frontend = (ROOT / 'desktop/src/App.tsx').read_text()
+        self.assertIn('embedded_windows.rs', main)
+        self.assertIn('libmpv-2.dll', renderer)
+        self.assertIn('mpv_initialize', renderer)
+        self.assertIn('"wid"', renderer)
+        self.assertNotIn('Command::new', renderer)
+        self.assertIn('player.start()', native)
+        self.assertIn('window.set_fullscreen(enabled)', native)
+        self.assertIn('/Linux|Windows/', frontend)
+        self.assertNotIn('Windows currently uses a separate mpv window', frontend)
+
     def test_only_native_linux_and_windows_artifacts_are_published(self):
         shell = (ROOT / 'build.sh').read_text()
         ps = (ROOT / 'build.ps1').read_text()

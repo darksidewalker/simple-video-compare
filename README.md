@@ -2,7 +2,7 @@
 
 ![Native Linux video comparison](assets/preview.png)
 
-Compare two local videos with a Rust + React desktop app. Linux embeds libmpv in a native GTK/OpenGL video pane; the Windows build currently opens a separate mpv video window. The React interface controls playback without decoding videos in the browser. Original source files are never rewritten.
+Compare two local videos with a Rust + React desktop app. Linux embeds libmpv in a native GTK/OpenGL video pane; Windows embeds the libmpv DLL in a native child window above the WebView2 controls. Neither desktop backend launches a separate player. The React interface controls playback without decoding videos in the browser. Original source files are never rewritten.
 
 The preview shows the Linux app with generated demonstration videos.
 
@@ -13,7 +13,7 @@ There are **two desktop binaries**, both for amd64. No separate server, browser-
 | Platform | Binary | Video runtime |
 |---|---|---|
 | Linux | [dasiwa-simple-video-compare-linux-amd64](dasiwa-simple-video-compare-linux-amd64) | `libmpv.so.2`, `ffprobe`, GTK3 and WebKitGTK 4.1 |
-| Windows | [dasiwa-simple-video-compare-windows-amd64.exe](dasiwa-simple-video-compare-windows-amd64.exe) | `mpv.exe`, `ffprobe.exe` and Microsoft Edge WebView2 Runtime |
+| Windows | [dasiwa-simple-video-compare-windows-amd64.exe](dasiwa-simple-video-compare-windows-amd64.exe) | 64-bit `libmpv-2.dll`, `ffprobe.exe` and Microsoft Edge WebView2 Runtime |
 
 On Linux:
 
@@ -22,11 +22,11 @@ chmod +x ./dasiwa-simple-video-compare-linux-amd64
 ./dasiwa-simple-video-compare-linux-amd64
 ```
 
-On Windows, launch `dasiwa-simple-video-compare-windows-amd64.exe`. Put mpv and ffprobe beside the executable or add them to PATH. The desktop app does not download these tools automatically.
+On Windows, place a 64-bit shared libmpv build's `libmpv-2.dll` beside `dasiwa-simple-video-compare-windows-amd64.exe` (or in its `lib/` directory). Keep any companion DLLs required by that build with it. Put `ffprobe.exe` beside the executable or on PATH, install Microsoft Edge WebView2 Runtime, then launch the app. An `mpv.exe` alone is not the library. Missing or incompatible libraries produce an open error; there is no external-player fallback. The desktop app does not download runtimes automatically.
 
-Linux searches for `lib/libmpv.so.2` beside the app, then `libmpv.so.2` beside the app, then the system library. `DAWVC_LIBMPV` overrides the Linux library path. `DAWVC_FFPROBE` overrides ffprobe; `DAWVC_MPV` selects the external Windows player. No Go sidecar, localhost server or compatibility transcode is needed by the desktop app.
+Linux searches for `lib/libmpv.so.2` beside the app, then `libmpv.so.2` beside the app, then the system library. `DAWVC_LIBMPV` overrides the library path on both platforms; use an absolute DLL path on Windows. `DAWVC_FFPROBE` overrides ffprobe. `DAWVC_MPV` is only used by headless/legacy process tests, not desktop playback. No Go sidecar, localhost server or compatibility transcode is needed by the desktop app.
 
-The Linux executable has been exercised with real native rendering. The Windows executable is cross-compiled from the same desktop source, but playback has not been verified on Windows.
+The Linux executable has been exercised with real native rendering. The Windows executable is cross-compiled from the same desktop source. Windows-specific DLL-path/DPI-layout unit tests and shared validation/filter tests also pass under Wine; actual Windows/WebView2 playback, resizing and shutdown have not been verified on Windows.
 
 ## Comparing videos
 
@@ -39,7 +39,7 @@ Browse, drop a file onto source A or B, or paste an absolute path. Two selected 
 - **Playback:** play/pause, seek, frame stepping, synchronization, fullscreen, audio A/B/mute and volume.
 - **Source details:** original ffprobe metadata and raw JSON, not proxy metadata.
 
-The Linux slider caches the packed A/B frame on the GPU. Dragging changes the displayed regions without rebuilding the video filter, seeking or decoding the paused frame again. It also works while playback continues. Blend and the external Windows player retain the filter-based comparison path.
+The Linux slider caches the packed A/B frame on the GPU. Dragging changes the displayed regions without rebuilding the video filter, seeking or decoding the paused frame again. It also works while playback continues. Blend and Windows retain the filter-based comparison path; Windows uses the A/B split control below the video rather than Linux's draggable native divider.
 
 When the control desk has focus, Space toggles playback, the left/right arrows seek five seconds, and Shift + arrow steps one frame. Text fields, selectors and buttons keep their normal keyboard behavior.
 
@@ -100,7 +100,7 @@ The performance test measures control-command round trips, not full mouse-to-mon
 ## Source layout
 
 - `desktop/`: React controls, frontend model and UI tests.
-- `src-tauri/`: native desktop lifecycle, mpv IPC, file selection and Linux GTK/OpenGL renderer.
+- `src-tauri/`: native desktop lifecycle, mpv IPC, file selection, Linux GTK/OpenGL renderer and Windows HWND/libmpv renderer.
 - `src-tauri/vendor/wry/`: vendored wry with WebKitGTK/Wayland file-drop fixes; third-party licenses are included.
 - `tests/`, `scripts/`: desktop build/package checks and optional Linux runtime packaging.
 - `cmd/`, `internal/`: retained legacy Go browser app and its tests.
@@ -108,4 +108,4 @@ The performance test measures control-command round trips, not full mouse-to-mon
 
 ## License
 
-GNU General Public License, version 3 or any later version. See [LICENSE](LICENSE). Runtime mpv/FFmpeg components and vendored libraries retain their own licenses.
+GNU General Public License, version 3 or any later version. See [LICENSE](LICENSE). Runtime mpv/FFmpeg components and vendored libraries retain their own licenses. See [Windows playback libraries and redistribution requirements](docs/windows-playback.md) for the libmpv decision, libVLC/GStreamer/Media Foundation alternatives and exact-build licensing obligations.

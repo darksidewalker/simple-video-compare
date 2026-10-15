@@ -55,14 +55,14 @@ impl NativeState {
         })
     }
 
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", windows))]
     pub fn set_embedded(&self, player: Arc<crate::embedded::Player>) {
         self.0.lock().unwrap().embedded = Some(player);
     }
     pub fn shutdown(&self) {
         if let Ok(mut engine) = self.0.lock() {
             engine.stop();
-            #[cfg(target_os = "linux")]
+            #[cfg(any(target_os = "linux", windows))]
             if let Some(player) = engine.embedded.take() {
                 if !player.ready.load(std::sync::atomic::Ordering::Acquire) {
                     player.shutdown();
@@ -175,14 +175,14 @@ fn comparison_vf(mode: &str, amount: f64, width: u32, height: u32) -> String {
 
 enum OwnedPlayer {
     Process(Child),
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", windows))]
     Embedded(Arc<crate::embedded::Player>),
 }
 impl OwnedPlayer {
     fn try_wait(&mut self) -> std::io::Result<Option<std::process::ExitStatus>> {
         match self {
             Self::Process(child) => child.try_wait(),
-            #[cfg(target_os = "linux")]
+            #[cfg(any(target_os = "linux", windows))]
             Self::Embedded(player) => {
                 if let Some(error) = player.error.lock().unwrap().as_ref() {
                     return Err(std::io::Error::other(error.clone()));
@@ -195,7 +195,7 @@ impl OwnedPlayer {
     fn id(&self) -> u32 {
         match self {
             Self::Process(child) => child.id(),
-            #[cfg(target_os = "linux")]
+            #[cfg(any(target_os = "linux", windows))]
             Self::Embedded(_) => std::process::id(),
         }
     }
@@ -281,6 +281,17 @@ impl Drop for Session {
             let _ = std::fs::remove_dir(&self.dir);
             return;
         }
+        #[cfg(windows)]
+        if let OwnedPlayer::Embedded(player) = &self.child {
+            // Termination closes mpv's pipe clients before joining the blocking reader.
+            player.shutdown();
+            self.writer.take();
+            if let Some(reader) = self.reader.take() {
+                let _ = reader.join();
+            }
+            let _ = std::fs::remove_dir(&self.dir);
+            return;
+        }
         // Kill only the child owned by this session; closing its IPC wakes the reader on Windows too.
         if let Some(writer) = &mut self.writer {
             let _ = writer.write_all(b"{\"command\":[\"quit\"]}\n");
@@ -312,7 +323,7 @@ impl Drop for Session {
 
 #[derive(Default)]
 struct Engine {
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", windows))]
     embedded: Option<Arc<crate::embedded::Player>>,
     session: Option<Session>,
     status: NativeStatus,
@@ -436,7 +447,7 @@ impl Engine {
         let endpoint = dir.join("ipc").to_string_lossy().into_owned();
         #[cfg(windows)]
         let endpoint = format!(r"\\.\pipe\dawvc-{}-{nonce}", std::process::id());
-        #[cfg(target_os = "linux")]
+        #[cfg(any(target_os = "linux", windows))]
         let embedded = if headless {
             None
         } else {
@@ -447,15 +458,20 @@ impl Engine {
             )
         };
         let mut session = None;
-        #[cfg(target_os = "linux")]
+        #[cfg(any(target_os = "linux", windows))]
         if let Some(player) = embedded.as_ref() {
+            #[cfg(windows)]
+            if let Err(error) = player.start() {
+                let _ = std::fs::remove_dir(&dir);
+                return Err(error);
+            }
             let deadline = Instant::now() + Duration::from_secs(10);
             while !player.ready.load(std::sync::atomic::Ordering::Acquire) {
                 if let Some(error) = player.error.lock().map_err(|e| e.to_string())?.clone() {
                     return Err(error);
                 }
                 if Instant::now() >= deadline {
-                    return Err("Embedded GLArea never became ready".into());
+                    return Err("Embedded video pane never became ready".into());
                 }
                 thread::sleep(Duration::from_millis(10));
             }
@@ -573,7 +589,7 @@ impl Engine {
                 }
             }
         }));
-        #[cfg(target_os = "linux")]
+        #[cfg(any(target_os = "linux", windows))]
         if embedded.is_some() {
             session.set("pause", json!(true))?;
             session.request(embedded_load(
@@ -849,7 +865,7 @@ pub async fn native_control(
     action: String,
     value: Value,
 ) -> Result<NativeStatus, String> {
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", windows))]
     if action == "fullscreen" {
         let enabled = value
             .as_bool()
@@ -857,7 +873,7 @@ pub async fn native_control(
         window.set_fullscreen(enabled).map_err(|e| e.to_string())?;
         return native_status(state).await;
     }
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(not(any(target_os = "linux", windows)))]
     let _ = window;
     let shared = state.0.clone();
     tauri::async_runtime::spawn_blocking(move || {

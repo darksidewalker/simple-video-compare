@@ -499,7 +499,7 @@ dependencies = [
 
 [[package]]
 name = "dasiwa-simple-video-compare"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "gtk",
  "libc",
@@ -509,6 +509,7 @@ dependencies = [
  "serde_json",
  "tauri",
  "tauri-build",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
