@@ -3,6 +3,7 @@ import { invoke, isTauri } from '@tauri-apps/api/core';
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { dropTarget, formatTime, pollStatus, probeSummary, selectPaths } from './model';
 import type { NativeStatus, Paths, Probe } from './model';
+import RuntimeSetup from './RuntimeSetup';
 
 type ProbeResult = { path: string; data?: Probe; error?: string };
 const message = (error: unknown) => error instanceof Error ? error.message : String(error);
@@ -28,7 +29,10 @@ export default function App() {
   const slots = useRef<(HTMLElement | null)[]>([]);
   const [status, setStatus] = useState<NativeStatus | null>(null);
   const [error, setError] = useState('');
-  const [busy, setBusy] = useState(false);
+  const [operationBusy, setBusy] = useState(false);
+  const [runtimeBusy, setRuntimeBusy] = useState(false);
+  const runtimeBusyRef = useRef(false);
+  const busy = operationBusy || runtimeBusy;
   const busyRef = useRef(false);
   const [rangeBusy, setRangeBusy] = useState(false);
   const pendingRanges = useRef(new Map<string, number>());
@@ -65,7 +69,7 @@ export default function App() {
 
   async function run(operation: () => Promise<void>, range = false) {
     if (!desktop) { setError('Desktop required. Launch the Tauri application to use local files and mpv.'); return; }
-    if (busyRef.current) { setError('A native operation is still in progress. Try again when it finishes.'); return; }
+    if (busyRef.current || runtimeBusyRef.current) { setError('A native operation is still in progress. Try again when it finishes.'); return; }
     busyRef.current = true;
     epoch.current++;
     setBusy(true);
@@ -81,6 +85,7 @@ export default function App() {
   }
 
   async function probeSources(next: Paths) {
+    if (runtimeBusyRef.current) return;
     await Promise.all(next.map(async (path, index) => {
       if (!path.trim()) return;
       setProbes(previous => previous.map((item, i) => i === index ? { path } : item));
@@ -115,6 +120,7 @@ export default function App() {
   }
 
   function rangeControl(action: string, value: number) {
+    if (runtimeBusyRef.current) return;
     if (busyRef.current && !rangeBusy) return;
     pendingRanges.current.set(action, value);
     if (busyRef.current) return;
@@ -158,7 +164,7 @@ export default function App() {
 
   useEffect(() => {
     function keydown(event: KeyboardEvent) {
-      if (!running || busyRef.current || event.altKey || event.ctrlKey || event.metaKey || event.repeat) return;
+      if (!running || busyRef.current || runtimeBusyRef.current || event.altKey || event.ctrlKey || event.metaKey || event.repeat) return;
       if (event.target instanceof HTMLElement && event.target.closest('input, select, textarea, button, [contenteditable="true"]')) return;
       if (event.code === 'Space') { event.preventDefault(); control('playPause'); }
       if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
@@ -183,7 +189,8 @@ export default function App() {
 
     {!desktop && <section className="notice" role="status"><strong>Desktop required</strong><p>This browser preview cannot open local sources or control mpv. Launch the Tauri desktop application. No browser video or simulated playback is used.</p></section>}
     {error && <section className="error" role="alert"><strong>Native operation failed</strong><p>{error}</p><button type="button" disabled={!desktop || busy} onClick={() => { setError(''); setPollFailed(false); setRetry(value => value + 1); }}>Retry status</button><button type="button" onClick={() => setRuntime(true)}>Runtime help</button></section>}
-    {runtime && <section className="runtime panel" aria-label="Runtime instructions"><div className="section-head"><h2>Native runtime</h2><button type="button" onClick={() => setRuntime(false)}>Close runtime help</button></div><p>Playback is embedded in this application: <code>libmpv.so.2</code> on Linux and 64-bit <code>libmpv-2.dll</code> on Windows. Place the library beside the app or in its <code>lib/</code> directory, or set <code>DAWVC_LIBMPV</code> to its full path. Linux also searches the system library. No separate mpv executable or player window is used. All platforms require <code>ffprobe</code> (included with FFmpeg) beside the app, on PATH, or selected with <code>DAWVC_FFPROBE</code>. This desk does not install runtimes.</p><ul><li>Ubuntu / Debian: <code>sudo apt install mpv ffmpeg</code></li><li>Arch / CachyOS: <code>sudo pacman -S mpv ffmpeg</code></li><li>Windows: use a 64-bit libmpv shared build and FFmpeg's <code>ffprobe.exe</code>; Microsoft Edge WebView2 Runtime is required for the controls.</li></ul><p>Restart the desktop application after changing PATH, then load the sources again. Current viewer: {status ? status.running ? 'running' : 'closed' : 'not connected'}{pollFailed ? ' · status unavailable' : ''}. Tool availability is confirmed by opening or probing a real file, not by this help panel.</p></section>}
+    <RuntimeSetup expanded={runtime} disabled={busy || running} onBusyChange={value => { runtimeBusyRef.current = value; setRuntimeBusy(value); }} />
+    {runtime && <section className="runtime panel" aria-label="Runtime instructions"><div className="section-head"><h2>Native runtime</h2><button type="button" onClick={() => setRuntime(false)}>Close runtime help</button></div><p>Playback is embedded in this application: <code>libmpv.so.2</code> on Linux and 64-bit <code>libmpv-2.dll</code> on Windows. Place the library beside the app or in its <code>lib/</code> directory, or set <code>DAWVC_LIBMPV</code> to its full path. Linux also searches the system library. No separate mpv executable or player window is used. All platforms require <code>ffprobe</code> (included with FFmpeg) beside the app, on PATH, or selected with <code>DAWVC_FFPROBE</code>. On Windows, use the download panel to install the app-managed runtime without copying files. Explicit <code>DAWVC_LIBMPV</code> and <code>DAWVC_FFPROBE</code> overrides take priority; otherwise the managed runtime is preferred over manual locations. Linux uses system packages.</p><ul><li>Ubuntu / Debian: <code>sudo apt install mpv ffmpeg</code></li><li>Arch / CachyOS: <code>sudo pacman -S mpv ffmpeg</code></li><li>Windows: use a 64-bit libmpv shared build and FFmpeg's <code>ffprobe.exe</code>; Microsoft Edge WebView2 Runtime is required for the controls.</li></ul><p>Restart the desktop application after changing PATH, then load the sources again. Current viewer: {status ? status.running ? 'running' : 'closed' : 'not connected'}{pollFailed ? ' · status unavailable' : ''}. Tool availability is confirmed by opening or probing a real file, not by this help panel.</p></section>}
 
     <form className="sources" onSubmit={event => { event.preventDefault(); void run(() => open(pathsRef.current)); }}>
       {(['A', 'B'] as const).map((letter, index) => <section key={letter} ref={element => { slots.current[index] = element; }} className={`source panel source-${letter.toLowerCase()} ${hover === index ? 'dragging' : ''}`}>

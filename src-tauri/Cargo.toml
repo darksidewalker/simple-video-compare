@@ -1,6 +1,6 @@
 [package]
 name = "dasiwa-simple-video-compare"
-version = "0.3.0"
+version = "0.4.0"
 description = "DaSiWa Simple Video Compare - native desktop shell (Tauri 2)"
 authors = ["DaSiWa"]
 edition = "2021"
@@ -17,7 +17,18 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2.11.5", features = [] }
 serde_json = "1"
 serde = { version = "1", features = ["derive"] }
-rfd = { version = "0.15", default-features = false, features = ["gtk3"] }
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "rustls-tls"] }
+sha2 = "0.10"
+sevenz-rust2 = { version = "0.24", default-features = false }
+tempfile = "3"
+
+[dev-dependencies]
+sevenz-rust2 = { version = "0.24", default-features = false, features = ["compress"] }
+
+[dependencies.rfd]
+version = "0.15"
+default-features = false
+features = ["gtk3"]
 # wry itself is not a direct dependency — tauri-runtime-wry links it.
 # The vendored/patched copy in src-tauri/vendor/wry (see
 # .cargo/config.toml [patch.crates-io]) is what ends up in the binary.

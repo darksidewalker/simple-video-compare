@@ -25,6 +25,7 @@ window.emitFixtureDrop = payload => emit('tauri://drag-drop', payload);
 mockIPC(async (command, args) => {
   const f = window.fixture;
   f.calls.push({command, args});
+  if (command === 'runtime_status') return {supported: false};
   if (command === 'native_status') {
     f.maxActive = Math.max(f.maxActive, ++f.active);
     const status = structuredClone(f.status), fail = f.failStatus;

@@ -6,6 +6,7 @@ mod embedded;
 #[path = "embedded_windows.rs"]
 mod embedded;
 mod native;
+mod runtime;
 use tauri::{Manager, RunEvent};
 
 fn main() {
@@ -23,6 +24,8 @@ fn main() {
             native::native_status,
             native::native_probe,
             native::native_pick,
+            runtime::runtime_status,
+            runtime::runtime_install,
         ])
         .build(tauri::generate_context!())
         .expect("error while building desktop application")

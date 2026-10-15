@@ -6,6 +6,14 @@ Reuse libmpv in-process. The Windows renderer loads `libmpv-2.dll` and supplies 
 
 Use a 64-bit shared library build, not just `mpv.exe`. See the [mpv installation page](https://mpv.io/installation/) for Windows build sources. Third-party binaries require their own provenance and dependency review.
 
+## Runtime downloads
+
+The Windows app can install libmpv and ffprobe into its own LocalAppData runtime directory. Downloads require an explicit click; status checks do not contact the network. The embedded `src-tauri/runtime-windows.json` catalog pins generic x86-64 builds, archive URLs, byte sizes and SHA-256 checksums. It does not follow upstream nightlies automatically. New approved catalog versions arrive with app updates.
+
+Archives are verified before extraction. Installation uses separate staging/version directories and activates a complete version only after both required components are present. Existing runtime versions are not overwritten, including any library loaded by the player. Manual `DAWVC_LIBMPV` and `DAWVC_FFPROBE` overrides remain authoritative. WebView2 is not installed by this downloader. Linux continues using system packages.
+
+Downloads come directly from the upstream build provider; the app repository does not embed the third-party runtime binaries. Pinned integrity is not a signature or an independent security audit. The installed provenance and supplied notices must be kept with the runtime. Hosting or bundling those binaries ourselves still requires the redistribution/source obligations below.
+
 ## Alternatives considered
 
 | Library | Native embedding | Trade-off |
@@ -29,7 +37,7 @@ Before distributing a bundled libmpv/FFmpeg runtime:
 - Fulfil applicable LGPL source, replacement/relinking and modification obligations for LGPL components.
 - Reject builds containing nonfree or GPL-incompatible dependencies.
 
-Copyright-license compatibility is not codec-patent clearance. Patent requirements can depend on jurisdiction and distribution. This is an engineering license assessment, not legal advice. The repository does not currently bundle or approve a particular Windows DLL build.
+Copyright-license compatibility is not codec-patent clearance. Patent requirements can depend on jurisdiction and distribution. This is an engineering license assessment, not legal advice. The catalog pins a particular upstream build for download; that is not an independent audit of every component or a claim of Windows playback certification.
 
 ## Sources
 

@@ -64,7 +64,7 @@ impl Api {
     }
 }
 
-fn dll_candidates(override_path: Option<PathBuf>, exe: &Path) -> Result<Vec<PathBuf>, String> {
+fn dll_candidates(override_path: Option<PathBuf>, exe: &Path, managed: Option<PathBuf>) -> Result<Vec<PathBuf>, String> {
     if let Some(path) = override_path {
         if !path.is_absolute() {
             return Err("DAWVC_LIBMPV must be an absolute DLL path".into());
@@ -72,7 +72,10 @@ fn dll_candidates(override_path: Option<PathBuf>, exe: &Path) -> Result<Vec<Path
         return Ok(vec![path]);
     }
     let dir = exe.parent().ok_or("No executable directory")?;
-    Ok(vec![dir.join("libmpv-2.dll"), dir.join("lib/libmpv-2.dll")])
+    let mut candidates = Vec::new();
+    if let Some(managed) = managed { candidates.push(managed.join("libmpv-2.dll")); }
+    candidates.extend([dir.join("libmpv-2.dll"), dir.join("lib/libmpv-2.dll")]);
+    Ok(candidates)
 }
 
 struct Runtime {
@@ -130,7 +133,7 @@ impl Player {
             return Ok(());
         }
         let exe = std::env::current_exe().map_err(|e| e.to_string())?;
-        let candidates = dll_candidates(std::env::var_os("DAWVC_LIBMPV").map(PathBuf::from), &exe)?;
+        let candidates = dll_candidates(std::env::var_os("DAWVC_LIBMPV").map(PathBuf::from), &exe, crate::runtime::installed_dir())?;
         let mut loaded = None;
         let mut errors = vec![];
         for path in candidates {
@@ -316,6 +319,21 @@ pub fn install(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>>
 mod tests {
     use super::*;
     #[test]
+    #[ignore = "requires a downloaded Windows libmpv DLL"]
+    fn downloaded_library_initializes_without_a_player_window() {
+        let path = std::env::var_os("DAWVC_RUNTIME_VERIFY_LIB").expect("Set DAWVC_RUNTIME_VERIFY_LIB");
+        let api = unsafe { Api::load(Path::new(&path)) }.unwrap();
+        let handle = unsafe { (api.create)() };
+        assert!(!handle.is_null());
+        let instance = Runtime { api, handle: handle as usize };
+        for (key, value) in [("vo", "null"), ("ao", "null"), ("config", "no")] {
+            let key = CString::new(key).unwrap();
+            let value = CString::new(value).unwrap();
+            instance.api.check(unsafe { (instance.api.option)(handle, key.as_ptr(), value.as_ptr()) }).unwrap();
+        }
+        instance.api.check(unsafe { (instance.api.initialize)(handle) }).unwrap();
+    }
+    #[test]
     fn controls_scale_and_never_make_video_negative() {
         assert_eq!(pane_heights(1080, 96), (640, 440));
         assert_eq!(pane_heights(1500, 144), (840, 660));
@@ -325,17 +343,18 @@ mod tests {
     #[test]
     fn dll_resolution_is_explicit_and_absolute() {
         let exe = Path::new(r"C:\app\compare.exe");
-        assert!(dll_candidates(Some("libmpv-2.dll".into()), exe).is_err());
+        assert!(dll_candidates(Some("libmpv-2.dll".into()), exe, None).is_err());
         assert_eq!(
-            dll_candidates(None, exe).unwrap(),
+            dll_candidates(None, exe, None).unwrap(),
             vec![
                 PathBuf::from(r"C:\app\libmpv-2.dll"),
                 PathBuf::from(r"C:\app\lib\libmpv-2.dll"),
             ]
         );
         assert_eq!(
-            dll_candidates(Some(r"D:\runtime\libmpv-2.dll".into()), exe).unwrap(),
+            dll_candidates(Some(r"D:\runtime\libmpv-2.dll".into()), exe, Some(r"D:\managed".into())).unwrap(),
             vec![PathBuf::from(r"D:\runtime\libmpv-2.dll")]
         );
+        assert_eq!(dll_candidates(None, exe, Some(r"D:\managed".into())).unwrap()[0], PathBuf::from(r"D:\managed\libmpv-2.dll"));
     }
 }

@@ -88,6 +88,10 @@ fn tool(name: &str) -> Result<PathBuf, String> {
         name.into()
     };
     let mut dirs = vec![];
+    #[cfg(windows)]
+    if let Some(dir) = crate::runtime::installed_dir() {
+        dirs.push(dir);
+    }
     if let Ok(exe) = std::env::current_exe() {
         if let Some(dir) = exe.parent() {
             dirs.push(dir.to_path_buf());

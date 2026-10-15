@@ -22,9 +22,13 @@ chmod +x ./dasiwa-simple-video-compare-linux-amd64
 ./dasiwa-simple-video-compare-linux-amd64
 ```
 
-On Windows, place a 64-bit shared libmpv build's `libmpv-2.dll` beside `dasiwa-simple-video-compare-windows-amd64.exe` (or in its `lib/` directory). Keep any companion DLLs required by that build with it. Put `ffprobe.exe` beside the executable or on PATH, install Microsoft Edge WebView2 Runtime, then launch the app. An `mpv.exe` alone is not the library. Missing or incompatible libraries produce an open error; there is no external-player fallback. The desktop app does not download runtimes automatically.
+On Windows, launch `dasiwa-simple-video-compare-windows-amd64.exe` and click **Download Windows runtime**. This explicitly downloads the catalog's pinned libmpv and ffprobe archives from GitHub, verifies their SHA-256 checksums and installs them under `%LOCALAPPDATA%\DaSiWa-simple-video-compare\runtime\`. No administrator access, PATH changes or manual DLL copying are needed. Microsoft Edge WebView2 Runtime is still required separately. Nothing is downloaded just by launching the app.
 
-Linux searches for `lib/libmpv.so.2` beside the app, then `libmpv.so.2` beside the app, then the system library. `DAWVC_LIBMPV` overrides the library path on both platforms; use an absolute DLL path on Windows. `DAWVC_FFPROBE` overrides ffprobe. `DAWVC_MPV` is only used by headless/legacy process tests, not desktop playback. No Go sidecar, localhost server or compatibility transcode is needed by the desktop app.
+**Runtime → Check runtime** compares the installed version with the catalog included in this app. If the app contains a newer catalog, **Update Windows runtime** installs it after confirmation by clicking the button. This is not a live upstream/nightly update feed. Stop playback before installing; the new runtime is used on the next open. Downloads stage into a separate version directory, so failures do not replace the current runtime. Older versions are retained.
+
+Manual installations remain supported: put a 64-bit `libmpv-2.dll` and any companion DLLs beside the app (or in `lib/`), and put `ffprobe.exe` beside it or on PATH. An `mpv.exe` alone is not the library. Missing or incompatible libraries produce an open error; there is no external-player fallback.
+
+Linux searches for `lib/libmpv.so.2` beside the app, then `libmpv.so.2` beside the app, then the system library; install Linux runtimes with the distribution package manager. Windows prefers the app-managed runtime over adjacent files and PATH. `DAWVC_LIBMPV` overrides the library path on both platforms; use an absolute DLL path on Windows. `DAWVC_FFPROBE` overrides ffprobe. Explicit overrides take priority over the managed runtime. `DAWVC_MPV` is only used by headless/legacy process tests, not desktop playback. No Go sidecar, localhost server or compatibility transcode is needed by the desktop app.
 
 The Linux executable has been exercised with real native rendering. The Windows executable is cross-compiled from the same desktop source. Windows-specific DLL-path/DPI-layout unit tests and shared validation/filter tests also pass under Wine; actual Windows/WebView2 playback, resizing and shutdown have not been verified on Windows.
 
@@ -80,8 +84,16 @@ env CARGO_TARGET_DIR="$PWD/.target" cargo test --manifest-path src-tauri/Cargo.t
 The Go tests cover the retained legacy source. Optional Rust integration tests require mpv, ffmpeg, ffprobe and libmpv:
 
 ```fish
-env DAWVC_TEST_MEDIA=/absolute/path/to/video.webm CARGO_TARGET_DIR="$PWD/.target" cargo test --manifest-path src-tauri/Cargo.toml -- --include-ignored
+env DAWVC_TEST_MEDIA=/absolute/path/to/video.webm CARGO_TARGET_DIR="$PWD/.target" cargo test --manifest-path src-tauri/Cargo.toml native::tests -- --include-ignored
 ```
+
+The optional runtime integration test downloads the actual catalog archives and leaves a verified Windows runtime in the selected scratch directory. It can run on Linux without executing the Windows binaries:
+
+```fish
+env DAWVC_RUNTIME_TEST_ROOT=/absolute/path/to/scratch CARGO_TARGET_DIR="$PWD/.target" cargo test --manifest-path src-tauri/Cargo.toml runtime::tests::real_catalog_download -- --ignored --nocapture
+```
+
+`desktop/tests/runtime_smoke.py` exercises download consent, progress, failure/retry and update controls with explicit IPC fixtures against a Vite development server; it is UI-contract evidence, not proof of network downloads. The runtime's Rust tests cover real local HTTP transfers, bad hashes, truncation, archive traversal, staging cleanup and atomic version promotion. The Windows test executable and real-download test have also been exercised under Wine, including initialization of the downloaded libmpv DLL and probing a real video with the downloaded ffprobe. This is not real Windows/WebView2 playback verification.
 
 For actual-app checks, launch a dedicated Linux instance with the local inspector enabled, then run either test from another terminal. Use sources longer than four seconds. Each test closes its dedicated instance:
 
@@ -100,7 +112,7 @@ The performance test measures control-command round trips, not full mouse-to-mon
 ## Source layout
 
 - `desktop/`: React controls, frontend model and UI tests.
-- `src-tauri/`: native desktop lifecycle, mpv IPC, file selection, Linux GTK/OpenGL renderer and Windows HWND/libmpv renderer.
+- `src-tauri/`: native desktop lifecycle, mpv IPC, file selection, Linux GTK/OpenGL renderer, Windows HWND/libmpv renderer and pinned runtime-download catalog/backend.
 - `src-tauri/vendor/wry/`: vendored wry with WebKitGTK/Wayland file-drop fixes; third-party licenses are included.
 - `tests/`, `scripts/`: desktop build/package checks and optional Linux runtime packaging.
 - `cmd/`, `internal/`: retained legacy Go browser app and its tests.
