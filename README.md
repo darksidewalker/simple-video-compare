@@ -1,85 +1,111 @@
 # DaSiWa Simple Video Compare
 
-![Preview](assets/preview.png)
+![Native Linux video comparison](assets/preview.png)
 
-A tool for comparing two local video files side by side in a browser window. Files play through the browser's `<video>` element; for codecs a browser cannot decode (HEVC, AV1, VP9), the local server transcodes a compatibility proxy with ffmpeg.
+Compare two local videos with a Rust + React desktop app. Linux embeds libmpv in a native GTK/OpenGL video pane; the Windows build currently opens a separate mpv video window. The React interface controls playback without decoding videos in the browser. Original source files are never rewritten.
 
-## Features
+The preview shows the Linux app with generated demonstration videos.
 
-- Standalone UX: single binary, the web interface opens in the default browser (opt-out with `--no-browser`)
-- Browser playback with an ffmpeg-based H.264 compatibility proxy, so HEVC/AV1/VP9 sources play in browsers that cannot decode them natively
-- Self-contained ffmpeg: if ffmpeg/ffprobe are missing, the app can download a pinned standalone build into the app folder (or the user installs them manually)
-- Local file selection: built-in file browser, file drop directly onto the left/right video pane, or paste a path; two files dropped at once fill A and B
-- Web UI: the web interface runs as an embedded local HTTP server (port 1420, `DAWVC_PORT` to override)
-- Browser auto-start: when started in a graphical environment, the web interface opens automatically in the default browser; `--no-browser` disables this
-- Platforms: Windows, Linux and macOS (amd64) — pure Go binaries with no external runtime dependencies (only ffmpeg/ffprobe)
+## Download and start
 
-## Requirements
+There are **two desktop binaries**, both for amd64. No separate server, browser-app or `standalone` variant is distributed. macOS is not a release target.
 
-- ffmpeg and ffprobe at runtime (details panel, codec probe, and the H.264 compatibility proxy for browser playback of HEVC/AV1/VP9 sources) — see below if missing
-
-**No build is needed.** Ready-to-run platform binaries are committed to the repository root; just run the one for your platform.
-
-| File | Platform | Launch |
+| Platform | Binary | Video runtime |
 |---|---|---|
-| `dasiwa-simple-video-compare-linux-amd64` | Linux | `./dasiwa-simple-video-compare-linux-amd64` |
-| `dasiwa-simple-video-compare-darwin-amd64` | macOS (Intel) | `./dasiwa-simple-video-compare-darwin-amd64` |
-| `dasiwa-simple-video-compare-windows-amd64.exe` | Windows | `dasiwa-simple-video-compare-windows-amd64.exe` |
+| Linux | [dasiwa-simple-video-compare-linux-amd64](dasiwa-simple-video-compare-linux-amd64) | `libmpv.so.2`, `ffprobe`, GTK3 and WebKitGTK 4.1 |
+| Windows | [dasiwa-simple-video-compare-windows-amd64.exe](dasiwa-simple-video-compare-windows-amd64.exe) | `mpv.exe`, `ffprobe.exe` and Microsoft Edge WebView2 Runtime |
 
-If ffmpeg/ffprobe are not found, the app does **not** fail. It detects them in this order on every check:
+On Linux:
 
-1. `DAWVC_FFMPEG` / `DAWVC_FFPROBE` environment variable (absolute path, or a name resolved via `PATH`/`PATHEXT`)
-2. The app folder (next to the executable) — where the built-in installer downloads standalone builds
-3. The system `PATH`
-
-Open the **Runtime** dialog in the web UI when the tools are missing. It offers two choices:
-
-- **Download standalone build** — fetches a pinned static build (BtbN/FFmpeg-Builds) and places `ffmpeg`/`ffprobe` next to the executable. Available on Linux and Windows; on macOS there is no pinned official build, so use the manual option.
-- **Re-check** / install on your own — install via your package manager (or `brew` on macOS), or drop `ffmpeg`/`ffprobe` into the app folder (shown in the dialog), then re-check. No restart needed.
-
-## Quick start
-
-Start the binary for your platform from the repository root (table above). The web interface opens automatically in the default browser:
-
-```bash
-./dasiwa-simple-video-compare-linux-amd64        # Linux
-./dasiwa-simple-video-compare-darwin-amd64       # macOS (Intel)
-dasiwa-simple-video-compare-windows-amd64.exe    # Windows
+```fish
+chmod +x ./dasiwa-simple-video-compare-linux-amd64
+./dasiwa-simple-video-compare-linux-amd64
 ```
 
-Useful options:
+On Windows, launch `dasiwa-simple-video-compare-windows-amd64.exe`. Put mpv and ffprobe beside the executable or add them to PATH. The desktop app does not download these tools automatically.
 
-```bash
---no-browser              # do not open the browser on start (daemon use)
-DAWVC_PORT=8080 ...       # override the port (default 1420)
-DAWVC_FFMPEG=/path/...    # point at a custom ffmpeg/ffprobe (see above)
+Linux searches for `lib/libmpv.so.2` beside the app, then `libmpv.so.2` beside the app, then the system library. `DAWVC_LIBMPV` overrides the Linux library path. `DAWVC_FFPROBE` overrides ffprobe; `DAWVC_MPV` selects the external Windows player. No Go sidecar, localhost server or compatibility transcode is needed by the desktop app.
+
+The Linux executable has been exercised with real native rendering. The Windows executable is cross-compiled from the same desktop source, but playback has not been verified on Windows.
+
+## Comparing videos
+
+Browse, drop a file onto source A or B, or paste an absolute path. Two selected or dropped files fill A and B in order. A single populated slot also works for ordinary playback. The timeline uses the longer source's duration and holds the shorter source's last frame at its end.
+
+- **Side:** both aligned sources side by side.
+- **Slider:** wipe between A and B. On Linux, drag the line or its handle directly over the video, use the A/B split control below, or focus the divider and use the left/right arrow keys.
+- **Blend:** mix the two aligned frames.
+- **Diff:** show the aligned frame difference.
+- **Playback:** play/pause, seek, frame stepping, synchronization, fullscreen, audio A/B/mute and volume.
+- **Source details:** original ffprobe metadata and raw JSON, not proxy metadata.
+
+The Linux slider caches the packed A/B frame on the GPU. Dragging changes the displayed regions without rebuilding the video filter, seeking or decoding the paused frame again. It also works while playback continues. Blend and the external Windows player retain the filter-based comparison path.
+
+When the control desk has focus, Space toggles playback, the left/right arrows seek five seconds, and Shift + arrow steps one frame. Text fields, selectors and buttons keep their normal keyboard behavior.
+
+Comparisons scale/pad B to A's geometry and currently use 8-bit YUV 4:2:0. This is not a bit-exact HDR/high-bit-depth analysis tool. Linux currently uses software decoding with GPU rendering; slider compositing does not remove the cost of decoding large or complex sources. Runtime codec support depends on the installed mpv/FFmpeg build.
+
+## Build
+
+Linux and Windows are the only distributed targets. Node/npm, Rust and the platform's Tauri build dependencies are required. Linux also needs the GTK3/WebKitGTK 4.1 development packages and libmpv for runtime testing.
+
+On Linux:
+
+```fish
+./build.sh
 ```
 
-## Building from source (developers only)
+This rebuilds React and the Linux desktop executable. With `cargo-xwin` and the `x86_64-pc-windows-msvc` Rust target installed, it also cross-compiles the Windows executable. If the cross-toolchain is missing, the script explicitly reports that Windows was skipped. `CARGO_TARGET_DIR` selects a reusable build directory; the default is `.target`.
 
-Only needed if you want to recompile the binaries yourself — normal use does not require Go.
+On Windows, use PowerShell:
 
-```bash
-./build.sh    # Linux, macOS and Windows in one pass
+```powershell
+.\build.ps1
 ```
 
-The binaries are pure Go (CGO off) and embed the web interface; at runtime they only need `ffmpeg`/`ffprobe`.
+This rebuilds React and the native Windows executable. Both scripts publish the same names from the download table; they do not build Go browser/server variants. A running Linux instance is not stopped when its executable is replaced; restart the app to load the new build.
 
-## Project structure
+The legacy Go browser implementation and the old root Rust prototype remain source-only. They are not the distributed desktop app. The desktop Rust manifest is `src-tauri/Cargo.toml`.
 
+## Verification
+
+```fish
+npm --prefix desktop test
+npm --prefix desktop run build
+python -m unittest discover -s tests -p '*_test.py'
+go test ./...
+env CARGO_TARGET_DIR="$PWD/.target" cargo test --manifest-path src-tauri/Cargo.toml
 ```
-├── cmd/dasiwa-simple-video-compare/
-│   ├── main.go              # Entry point for the desktop UX
-│   └── web/                 # Embedded assets for the optional browser mode
-├── internal/
-│   ├── media/               # ffmpeg/ffprobe resolution, standalone installer
-│   └── server/              # Embedded local HTTP server
-├── assets/                  # Project assets (screenshots, icons)
-└── go.mod                   # Go module definition
+
+The Go tests cover the retained legacy source. Optional Rust integration tests require mpv, ffmpeg, ffprobe and libmpv:
+
+```fish
+env DAWVC_TEST_MEDIA=/absolute/path/to/video.webm CARGO_TARGET_DIR="$PWD/.target" cargo test --manifest-path src-tauri/Cargo.toml -- --include-ignored
 ```
+
+For actual-app checks, launch a dedicated Linux instance with the local inspector enabled, then run either test from another terminal. Use sources longer than four seconds. Each test closes its dedicated instance:
+
+```fish
+env DAWVC_RENDER_VERIFY=1 WEBKIT_INSPECTOR_HTTP_SERVER=127.0.0.1:9238 ./dasiwa-simple-video-compare-linux-amd64
+# In another terminal:
+uv run --no-project --with websocket-client python desktop/tests/native_smoke.py /absolute/path/to/A.mp4 /absolute/path/to/B.webm
+# Or, with a new dedicated instance:
+uv run --no-project --with websocket-client python desktop/tests/slider_performance.py /absolute/path/to/A.mp4 /absolute/path/to/B.webm
+```
+
+The performance test measures control-command round trips, not full mouse-to-monitor latency. Opt-in `GLAREA_SPLIT` logs expose composed center pixels, GPU cache reuse and copy timings; `GLAREA_FRAME` logs include framebuffer hashes and OpenGL errors. Native mouse/pixel tests and two generated 3840×2160 sources have been exercised on Linux, including RTX 5090 rendering. This does not establish performance for every 4K/8K codec or file.
+
+`scripts/package_linux.py` can assemble a local runtime archive from the canonical Linux binary, libmpv, ffprobe and the build host's codec libraries. GTK/WebKitGTK, glibc and GPU drivers remain host requirements. Before redistributing that optional archive, supply the corresponding third-party sources and license notices; it is not a universal Linux release.
+
+## Source layout
+
+- `desktop/`: React controls, frontend model and UI tests.
+- `src-tauri/`: native desktop lifecycle, mpv IPC, file selection and Linux GTK/OpenGL renderer.
+- `src-tauri/vendor/wry/`: vendored wry with WebKitGTK/Wayland file-drop fixes; third-party licenses are included.
+- `tests/`, `scripts/`: desktop build/package checks and optional Linux runtime packaging.
+- `cmd/`, `internal/`: retained legacy Go browser app and its tests.
+- `assets/`: preview and application artwork.
 
 ## License
 
-GNU General Public License, version 3 (or any later version) — see [LICENSE](LICENSE).
-
-DaSiWa Simple Video Compare depends on ffmpeg/ffprobe at runtime. The bundled downloader fetches the GPL builds from BtbN/FFmpeg-Builds, which are themselves GPLv3+ licensed; this is consistent with the license of this project.
+GNU General Public License, version 3 or any later version. See [LICENSE](LICENSE). Runtime mpv/FFmpeg components and vendored libraries retain their own licenses.
