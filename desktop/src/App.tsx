@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
-import { dropTarget, formatTime, pollStatus, probeSummary, selectPaths } from './model';
-import type { NativeStatus, Paths, Probe } from './model';
+import { dropTarget, formatTime, pollStatus, selectPaths } from './model';
+import type { NativeStatus, Paths } from './model';
 import RuntimeSetup from './RuntimeSetup';
+import { BackendDetails, useBackendCheck } from './BackendStatus';
 
-type ProbeResult = { path: string; data?: Probe; error?: string };
+
 const message = (error: unknown) => error instanceof Error ? error.message : String(error);
 const modes = [['side', 'Side'], ['slider', 'Slider'], ['blend', 'Blend'], ['diff', 'Diff']] as const;
 
@@ -32,6 +33,7 @@ export default function App() {
   const [operationBusy, setBusy] = useState(false);
   const [runtimeBusy, setRuntimeBusy] = useState(false);
   const runtimeBusyRef = useRef(false);
+  const backend = useBackendCheck(desktop, runtimeBusy);
   const busy = operationBusy || runtimeBusy;
   const busyRef = useRef(false);
   const [rangeBusy, setRangeBusy] = useState(false);
@@ -40,11 +42,11 @@ export default function App() {
   const epoch = useRef(0);
   const [pollFailed, setPollFailed] = useState(false);
   const [retry, setRetry] = useState(0);
-  const [details, setDetails] = useState(false);
+  const details = status?.details ?? false;
   const [runtime, setRuntime] = useState(false);
   const [hidden, setHidden] = useState(false);
   const [hover, setHover] = useState<0 | 1 | null>(null);
-  const [probes, setProbes] = useState<(ProbeResult | null)[]>([null, null]);
+
   const running = !!status?.running && !pollFailed;
 
   function editPaths(next: Paths) { pathsRef.current = next; setPaths(next); }
@@ -84,24 +86,10 @@ export default function App() {
     finally { busyRef.current = false; setBusy(false); setRangeBusy(false); }
   }
 
-  async function probeSources(next: Paths) {
-    if (runtimeBusyRef.current) return;
-    await Promise.all(next.map(async (path, index) => {
-      if (!path.trim()) return;
-      setProbes(previous => previous.map((item, i) => i === index ? { path } : item));
-      try {
-        const data = await invoke<Probe>('native_probe', { path });
-        setProbes(previous => previous.map((item, i) => i === index && item?.path === path ? { path, data } : item));
-      } catch (failure) {
-        setProbes(previous => previous.map((item, i) => i === index && item?.path === path ? { path, error: message(failure) } : item));
-      }
-    }));
-  }
 
   async function open(next: Paths) {
     if (!next.some(path => path.trim())) throw new Error('Choose at least one video before opening the viewer.');
-    // Keep source-detail errors separate from the native player's open error.
-    void probeSources(next);
+
     const result = await invoke<NativeStatus>('native_open', { paths: next });
     setStatus(result);
     setPollFailed(false);
@@ -115,7 +103,7 @@ export default function App() {
     await open(next);
   }
 
-  function control(action: string, value: string | number | null = null) {
+  function control(action: string, value: string | number | boolean | null = null) {
     void run(async () => { setStatus(await invoke<NativeStatus>('native_control', { action, value })); });
   }
 
@@ -182,7 +170,7 @@ export default function App() {
       <div className="identity"><p className="eyebrow">DaSiWa · Native comparison</p><h1>Simple Video Compare</h1></div>
       <div className="top-actions">
         {embedded && <span role="status">{running ? status?.paused ? 'Paused' : 'Playing' : 'No video loaded'}</span>}
-        <button type="button" aria-expanded={runtime} onClick={() => setRuntime(!runtime)}><span className={`dot ${running ? 'online' : ''}`} />Runtime</button>
+        <button type="button" aria-label="Runtime" aria-expanded={runtime} data-backend-state={backend.checking ? 'checking' : backend.report?.ready ? 'ready' : 'missing'} title={backend.checking ? 'Checking backend' : backend.report?.ready ? 'Backend ready' : 'Backend components need attention'} onClick={() => setRuntime(!runtime)}><span aria-hidden="true" className={`backend-indicator ${backend.report?.ready && !backend.checking ? 'backend-ok' : 'backend-missing'}`}>{backend.checking ? '…' : backend.report?.ready ? '✓' : '⚠'}</span> Runtime</button>
         <button type="button" disabled={!desktop || busy} onClick={() => void run(() => getCurrentWebviewWindow().close())}>Quit</button>
       </div>
     </header>
@@ -190,7 +178,8 @@ export default function App() {
     {!desktop && <section className="notice" role="status"><strong>Desktop required</strong><p>This browser preview cannot open local sources or control mpv. Launch the Tauri desktop application. No browser video or simulated playback is used.</p></section>}
     {error && <section className="error" role="alert"><strong>Native operation failed</strong><p>{error}</p><button type="button" disabled={!desktop || busy} onClick={() => { setError(''); setPollFailed(false); setRetry(value => value + 1); }}>Retry status</button><button type="button" onClick={() => setRuntime(true)}>Runtime help</button></section>}
     <RuntimeSetup expanded={runtime} disabled={busy || running} onBusyChange={value => { runtimeBusyRef.current = value; setRuntimeBusy(value); }} />
-    {runtime && <section className="runtime panel" aria-label="Runtime instructions"><div className="section-head"><h2>Native runtime</h2><button type="button" onClick={() => setRuntime(false)}>Close runtime help</button></div><p>Playback is embedded in this application: <code>libmpv.so.2</code> on Linux and 64-bit <code>libmpv-2.dll</code> on Windows. Place the library beside the app or in its <code>lib/</code> directory, or set <code>DAWVC_LIBMPV</code> to its full path. Linux also searches the system library. No separate mpv executable or player window is used. All platforms require <code>ffprobe</code> (included with FFmpeg) beside the app, on PATH, or selected with <code>DAWVC_FFPROBE</code>. On Windows, use the download panel to install the app-managed runtime without copying files. Explicit <code>DAWVC_LIBMPV</code> and <code>DAWVC_FFPROBE</code> overrides take priority; otherwise the managed runtime is preferred over manual locations. Linux uses system packages.</p><ul><li>Ubuntu / Debian: <code>sudo apt install mpv ffmpeg</code></li><li>Arch / CachyOS: <code>sudo pacman -S mpv ffmpeg</code></li><li>Windows: use a 64-bit libmpv shared build and FFmpeg's <code>ffprobe.exe</code>; Microsoft Edge WebView2 Runtime is required for the controls.</li></ul><p>Restart the desktop application after changing PATH, then load the sources again. Current viewer: {status ? status.running ? 'running' : 'closed' : 'not connected'}{pollFailed ? ' · status unavailable' : ''}. Tool availability is confirmed by opening or probing a real file, not by this help panel.</p></section>}
+    {runtime && desktop && <BackendDetails backend={backend} disabled={runtimeBusy} />}
+    {runtime && <section className="runtime panel" aria-label="Runtime instructions"><div className="section-head"><h2>Native runtime</h2><button type="button" onClick={() => setRuntime(false)}>Close runtime help</button></div><p>Playback is embedded in this application: <code>libmpv.so.2</code> on Linux and 64-bit <code>libmpv-2.dll</code> on Windows. Place the library beside the app or in its <code>lib/</code> directory, or set <code>DAWVC_LIBMPV</code> to its full path. Linux also searches the system library. No separate mpv executable or player window is used. All platforms require <code>ffprobe</code> (included with FFmpeg) beside the app, on PATH, or selected with <code>DAWVC_FFPROBE</code>. On Windows, use the download panel to install the app-managed runtime without copying files. Explicit <code>DAWVC_LIBMPV</code> and <code>DAWVC_FFPROBE</code> overrides take priority; otherwise the managed runtime is preferred over manual locations. Linux uses system packages.</p><ul><li>Ubuntu / Debian: <code>sudo apt install mpv ffmpeg</code></li><li>Arch / CachyOS: <code>sudo pacman -S mpv ffmpeg</code></li><li>Windows: use a 64-bit libmpv shared build and FFmpeg's <code>ffprobe.exe</code>; Microsoft Edge WebView2 Runtime is required for the controls.</li></ul><p>Restart the desktop application after changing PATH, then load the sources again. Current viewer: {status ? status.running ? 'running' : 'closed' : 'not connected'}{pollFailed ? ' · status unavailable' : ''}. Backend checks above verify library initialization, ffprobe and the native pane. Open a real file to verify codec support and decoding.</p></section>}
 
     <form className="sources" onSubmit={event => { event.preventDefault(); void run(() => open(pathsRef.current)); }}>
       {(['A', 'B'] as const).map((letter, index) => <section key={letter} ref={element => { slots.current[index] = element; }} className={`source panel source-${letter.toLowerCase()} ${hover === index ? 'dragging' : ''}`}>
@@ -202,7 +191,7 @@ export default function App() {
     </form>
 
     <section className="desk panel" aria-label="Native viewer controls">
-      <div className="section-head"><div className="mode-tabs" role="group" aria-label="Comparison mode">{modes.map(([mode, label]) => <button key={mode} type="button" className={status?.mode === mode ? 'active' : ''} aria-pressed={status?.mode === mode} disabled={!running || busy || !status?.paths.every(path => path)} onClick={() => control('mode', mode)}>{label}</button>)}</div><div className="desk-actions"><button type="button" aria-expanded={!hidden} onClick={() => setHidden(!hidden)}>{hidden ? 'Show controls' : 'Hide controls'}</button><button type="button" aria-expanded={details} onClick={() => { setDetails(!details); if (!details && desktop) void probeSources(pathsRef.current); }}>Source details</button></div></div>
+      <div className="section-head"><div className="mode-tabs" role="group" aria-label="Comparison mode">{modes.map(([mode, label]) => <button key={mode} type="button" className={status?.mode === mode ? 'active' : ''} aria-pressed={status?.mode === mode} disabled={!running || busy || !status?.paths.every(path => path)} onClick={() => control('mode', mode)}>{label}</button>)}</div><div className="desk-actions"><button type="button" aria-expanded={!hidden} onClick={() => setHidden(!hidden)}>{hidden ? 'Show controls' : 'Hide controls'}</button><button type="button" aria-pressed={details} disabled={!running || busy} onClick={() => control('sourceDetails', !details)}>Source details</button></div></div>
       <div className="native-note"><div className="viewer-mark" aria-hidden="true"><span>A</span><span>B</span></div><div><h2>{embedded ? 'Native video above these controls' : running ? 'Comparison is in the mpv window' : 'A dedicated window for the pixels'}</h2><p>{running ? 'Use Open / reopen native viewer above to restart playback or reopen it after closing.' : 'Choose one video for playback or two videos for comparison, then open the native viewer.'} This control desk does not decode video. mpv plays the original files without browser codec limitations.</p></div><span className="viewer-state">{pollFailed ? 'Status unavailable' : status ? running ? status.paused ? 'Paused' : 'Playing' : 'Viewer closed' : desktop ? 'Connecting…' : 'Desktop only'}</span></div>
       {!hidden && <div className="transport">
         <div className="transport-row"><button className="primary" type="button" disabled={!running || busy} onClick={() => control('playPause')}>{status?.paused === false ? 'Pause' : 'Play'}</button><button type="button" disabled={!running || busy} onClick={() => control('stepBackward')} aria-label="Step backward one frame">← Frame</button><button type="button" disabled={!running || busy} onClick={() => control('stepForward')} aria-label="Step forward one frame">Frame →</button><button type="button" disabled={!running || busy} onClick={() => control('sync')}>Sync now</button><button type="button" disabled={!running || busy} onClick={() => control('fullscreen')}>Native fullscreen</button><button type="button" disabled={!running || busy} onClick={() => control('stop')}>Stop viewer</button></div>
@@ -211,10 +200,7 @@ export default function App() {
       </div>}
     </section>
 
-    {details && <section className="details-grid" aria-label="Original source metadata">{(['A', 'B'] as const).map((letter, index) => {
-      const probe = probes[index]?.path === paths[index] ? probes[index] : null;
-      return <article className="panel details" key={letter}><h2><span className={`badge badge-${letter.toLowerCase()}`}>{letter}</span> Original source details</h2><p className="source-path">{paths[index] || 'No source selected'}</p><small>Direct ffprobe metadata from this file. No proxy or transcoded substitute.</small>{probe?.error ? <p className="probe-error" role="alert">{probe.error} · Check ffprobe installation in Runtime help.</p> : probe?.data ? <><dl>{probeSummary(probe.data).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl><details><summary>Raw ffprobe JSON</summary><pre>{JSON.stringify(probe.data, null, 2)}</pre></details></> : <p>{paths[index] && desktop ? 'Reading source details…' : 'Choose a local source in the desktop application.'}</p>}</article>;
-    })}</section>}
+
     <footer><span>Native mpv · original sources · no browser proxy</span><span><kbd>Space</kbd> play / pause · <kbd>←</kbd><kbd>→</kbd> ±5s · <kbd>Shift + arrow</kbd> frame step <small>(while this desk has focus)</small></span></footer>
   </main>;
 }

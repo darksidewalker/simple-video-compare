@@ -26,6 +26,7 @@ pub struct NativeStatus {
     pub audio: String,
     pub volume: f64,
     pub running: bool,
+    pub details: bool,
 }
 impl Default for NativeStatus {
     fn default() -> Self {
@@ -39,6 +40,7 @@ impl Default for NativeStatus {
             audio: "A".into(),
             volume: 100.0,
             running: false,
+            details: false,
         }
     }
 }
@@ -55,9 +57,20 @@ impl NativeState {
         })
     }
 
+    #[cfg(target_os = "linux")]
+    pub fn overlay_details(&self) -> Option<[Option<crate::source_overlay::SourceDetails>; 2]> {
+        self.0.try_lock().ok().map(|engine| {
+            if engine.status.running && engine.status.details { engine.source_details.clone() }
+            else { [None, None] }
+        })
+    }
+
     #[cfg(any(target_os = "linux", windows))]
     pub fn set_embedded(&self, player: Arc<crate::embedded::Player>) {
         self.0.lock().unwrap().embedded = Some(player);
+    }
+    pub fn set_embedded_error(&self, error: String) {
+        self.0.lock().unwrap_or_else(|e| e.into_inner()).embedded_error = Some(error);
     }
     pub fn shutdown(&self) {
         if let Ok(mut engine) = self.0.lock() {
@@ -72,15 +85,13 @@ impl NativeState {
     }
 }
 
+fn configured_tool(key: &str, path: PathBuf) -> Result<PathBuf, String> {
+    if path.is_file() { Ok(path) } else { Err(format!("{key} is not a file: {}", path.display())) }
+}
 fn tool(name: &str) -> Result<PathBuf, String> {
     let key = format!("DAWVC_{}", name.to_uppercase());
     if let Some(path) = std::env::var_os(&key).filter(|p| !p.is_empty()) {
-        let path = PathBuf::from(path);
-        return if path.is_file() {
-            Ok(path)
-        } else {
-            Err(format!("{key} is not a file: {}", path.display()))
-        };
+        return configured_tool(&key, PathBuf::from(path));
     }
     let filename = if cfg!(windows) {
         format!("{name}.exe")
@@ -106,6 +117,113 @@ fn tool(name: &str) -> Result<PathBuf, String> {
         .ok_or_else(|| {
             format!("{name} not found; install it, place it beside the app, or set {key}")
         })
+}
+
+fn probe_version(path: &Path, timeout: Duration) -> Result<String, String> {
+    use std::io::Read;
+    let mut child = Command::new(path).arg("-version").stdin(Stdio::null())
+        .stdout(Stdio::piped()).stderr(Stdio::piped()).spawn()
+        .map_err(|e| format!("Start ffprobe: {e}"))?;
+    let (tx, rx) = mpsc::channel();
+    // Drain both pipes continuously, retaining only a bounded diagnostic prefix.
+    for mut pipe in [Box::new(child.stdout.take().unwrap()) as Box<dyn Read + Send>,
+                     Box::new(child.stderr.take().unwrap()) as Box<dyn Read + Send>] {
+        let tx = tx.clone();
+        thread::spawn(move || {
+            let mut saved = Vec::new();
+            let mut buf = [0; 4096];
+            while let Ok(n) = pipe.read(&mut buf) {
+                if n == 0 { break; }
+                saved.extend_from_slice(&buf[..n.min(8192usize.saturating_sub(saved.len()))]);
+            }
+            let _ = tx.send(saved);
+        });
+    }
+    drop(tx);
+    let deadline = Instant::now() + timeout;
+    let status = loop {
+        match child.try_wait() {
+            Ok(Some(status)) => break status,
+            Ok(None) if Instant::now() < deadline => thread::sleep(Duration::from_millis(10)),
+            result => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(match result { Err(e) => format!("Wait for ffprobe: {e}"), _ => "ffprobe -version timed out".into() });
+            }
+        }
+    };
+    let mut output = String::new();
+    for _ in 0..2 {
+        if let Ok(bytes) = rx.recv_timeout(Duration::from_millis(100)) {
+            output.push_str(&String::from_utf8_lossy(&bytes));
+        }
+    }
+    if !status.success() { return Err(format!("ffprobe exited {status}: {output}")); }
+    let version = output.lines().find(|line| line.starts_with("ffprobe version"))
+        .ok_or("ffprobe returned no recognizable version")?;
+    Ok(version.into())
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BackendCheck {
+    name: String,
+    ok: bool,
+    path: Option<String>,
+    detail: String,
+    hint: String,
+}
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BackendReadiness {
+    ready: bool,
+    checks: Vec<BackendCheck>,
+}
+fn backend_hint(component: &str) -> String {
+    if cfg!(windows) {
+        format!("Use Download Windows runtime in Runtime / Help, or place the runtime beside the app. Check DAWVC_LIBMPV (absolute DLL path) and DAWVC_FFPROBE (executable path). Component: {component}.")
+    } else {
+        format!("Install your distribution's libmpv, FFmpeg (ffprobe), GTK/OpenGL drivers; check DAWVC_LIBMPV and DAWVC_FFPROBE override paths. Restart after changing runtime paths. Component: {component}.")
+    }
+}
+fn backend_checks(state: &NativeState) -> BackendReadiness {
+    let mut checks = vec![];
+    #[cfg(any(target_os = "linux", windows))]
+    {
+        let (path, result) = crate::embedded::check_library();
+        checks.push(BackendCheck { name: "libmpv".into(), ok: result.is_ok(), path,
+            detail: result.unwrap_or_else(|e| e), hint: backend_hint("libmpv") });
+    }
+    let resolved = tool("ffprobe");
+    let path = resolved.as_ref().ok().map(|p| p.to_string_lossy().into_owned())
+        .or_else(|| std::env::var_os("DAWVC_FFPROBE").map(|p| p.to_string_lossy().into_owned()));
+    let result = resolved.and_then(|p| probe_version(&p, Duration::from_secs(3)));
+    checks.push(BackendCheck { name: "ffprobe".into(), ok: result.is_ok(), path,
+        detail: result.unwrap_or_else(|e| e), hint: backend_hint("ffprobe") });
+    let deadline = Instant::now() + Duration::from_secs(2);
+    let result = loop {
+        let result = state.0.try_lock().ok().and_then(|engine| {
+            if let Some(error) = &engine.embedded_error { return Some(Err(error.clone())); }
+            #[cfg(any(target_os = "linux", windows))]
+            if let Some(player) = &engine.embedded {
+                #[cfg(target_os = "linux")]
+                if let Some(error) = player.error.lock().unwrap_or_else(|e| e.into_inner()).clone() { return Some(Err(error)); }
+                if player.ready.load(std::sync::atomic::Ordering::Acquire) { return Some(Ok("Native video pane initialized".to_string())); }
+            }
+            None
+        });
+        if let Some(result) = result { break result; }
+        if Instant::now() >= deadline { break Err("Native video pane is unavailable or still initializing".into()); }
+        thread::sleep(Duration::from_millis(20));
+    };
+    checks.push(BackendCheck { name: "Native video pane".into(), ok: result.is_ok(), path: None,
+        detail: result.unwrap_or_else(|e| e), hint: backend_hint("Native video pane") });
+    BackendReadiness { ready: checks.iter().all(|c| c.ok), checks }
+}
+#[tauri::command]
+pub async fn backend_check(state: State<'_, NativeState>) -> Result<BackendReadiness, String> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || backend_checks(&state)).await.map_err(|e| e.to_string())
 }
 
 fn media_path(path: &str) -> Result<PathBuf, String> {
@@ -327,6 +445,8 @@ impl Drop for Session {
 
 #[derive(Default)]
 struct Engine {
+    source_details: [Option<crate::source_overlay::SourceDetails>; 2],
+    embedded_error: Option<String>,
     #[cfg(any(target_os = "linux", windows))]
     embedded: Option<Arc<crate::embedded::Player>>,
     session: Option<Session>,
@@ -354,6 +474,7 @@ impl Engine {
         if let Some(player) = &self.embedded { player.configure_split(None); }
         self.session.take();
         self.status.running = false;
+        self.status.details = false;
         self.status.paused = true;
     }
     fn graph(&self) -> Result<String, String> {
@@ -425,6 +546,10 @@ impl Engine {
             duration = duration.max(d);
         }
         self.stop();
+        self.source_details = [None, None];
+        for (index, &slot) in source_slots.iter().enumerate() {
+            self.source_details[slot] = Some(crate::source_overlay::from_probe(slot, &paths[index], &probes[index]));
+        }
         self.status = NativeStatus {
             paths: slot_paths,
             duration,
@@ -695,6 +820,19 @@ impl Engine {
         if self.session.is_none() {
             return Err("Open a video first".into());
         }
+        if action == "sourceDetails" {
+            let show = value.as_bool().ok_or("Source details must be true or false")?;
+            #[cfg(windows)]
+            {
+                let data = if show { crate::source_overlay::ass_overlay(&self.source_details) } else { String::new() };
+                self.session.as_mut().unwrap().request(json!({
+                    "name": "osd-overlay", "id": 41, "format": "ass-events",
+                    "data": data, "res_x": 1280, "res_y": 720, "z": 10
+                }))?;
+            }
+            self.status.details = show;
+            return Ok(self.status.clone());
+        }
         if matches!(action, "seek" | "sync" | "stepForward" | "stepBackward" | "playPause")
             && matches!(self.status.mode.as_str(), "slider" | "blend")
             && !self.uses_gpu_slider()
@@ -923,6 +1061,34 @@ pub async fn native_pick() -> Result<Vec<String>, String> {
 mod tests {
     use super::*;
     #[test]
+    fn backend_missing_configured_ffprobe_does_not_fall_back() {
+        assert!(configured_tool("DAWVC_FFPROBE", PathBuf::from("/missing/dawvc-ffprobe")).unwrap_err().contains("DAWVC_FFPROBE is not a file"));
+        assert!(probe_version(Path::new("/missing/dawvc-ffprobe"), Duration::from_millis(100)).unwrap_err().contains("Start ffprobe"));
+    }
+    #[cfg(unix)]
+    #[test]
+    fn backend_probe_execution_is_bounded_and_reports_failures() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("ffprobe");
+        use std::os::unix::fs::PermissionsExt;
+        for (body, expected) in [
+            ("echo 'ffprobe version test'", "ffprobe version test"),
+            ("echo broken >&2; exit 7", "broken"),
+            ("while :; do printf flood; done", "timed out"),
+        ] {
+            std::fs::write(&path, format!("#!/bin/sh\n{body}\n")).unwrap();
+            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o700)).unwrap();
+            let start = Instant::now();
+            let result = probe_version(&path, Duration::from_millis(100));
+            assert!(start.elapsed() < Duration::from_secs(2));
+            if expected.starts_with("ffprobe") {
+                assert!(result.unwrap().contains(expected));
+            } else {
+                assert!(result.unwrap_err().contains(expected));
+            }
+        }
+    }
+    #[test]
     #[ignore = "requires installed mpv/ffprobe and DAWVC_TEST_MEDIA"]
     fn real_media_opens_in_native_mpv() {
         let path = std::env::var("DAWVC_TEST_MEDIA").expect("set DAWVC_TEST_MEDIA");
@@ -965,6 +1131,11 @@ mod tests {
         }
         let mut engine = Engine::default();
         engine.open(paths.clone(), true).unwrap();
+        assert!(!engine.status.details);
+        assert!(engine.source_details.iter().all(Option::is_some));
+        assert!(engine.control("sourceDetails", json!(true)).unwrap().details);
+        assert!(engine.control("sourceDetails", json!("invalid")).is_err());
+        assert!(!engine.control("sourceDetails", json!(false)).unwrap().details);
         assert_eq!(engine.refresh().unwrap().duration, 3.0);
         assert_eq!(engine.audio_ids, [Some(1), Some(2)]);
         assert!(engine
@@ -1063,6 +1234,8 @@ mod tests {
             vec![String::new(), paths[1].clone()]
         );
         assert_eq!(engine.status.audio, "B");
+        assert!(engine.source_details[0].is_none());
+        assert!(engine.source_details[1].is_some());
         assert_eq!(engine.audio_ids, [None, Some(1)]);
         assert_eq!(
             engine.session.as_mut().unwrap().get("mute").unwrap(),

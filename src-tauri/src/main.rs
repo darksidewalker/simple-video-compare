@@ -7,6 +7,7 @@ mod embedded;
 mod embedded;
 mod native;
 mod runtime;
+mod source_overlay;
 use tauri::{Manager, RunEvent};
 
 fn main() {
@@ -19,6 +20,7 @@ fn main() {
     tauri::Builder::default()
         .manage(native::NativeState::default())
         .invoke_handler(tauri::generate_handler![
+            native::backend_check,
             native::native_open,
             native::native_control,
             native::native_status,
@@ -32,12 +34,16 @@ fn main() {
         .run(|app, event| {
             #[cfg(target_os = "linux")]
             if let RunEvent::Ready = event {
-                embedded::install(app).expect("Linux embedded renderer initialization failed");
+                if let Err(error) = embedded::install(app) {
+                    eprintln!("Linux embedded renderer initialization failed: {error}");
+                    app.state::<native::NativeState>().set_embedded_error(error.to_string());
+                }
             }
             #[cfg(windows)]
             if let RunEvent::Ready = event {
                 if let Err(error) = embedded::install(app) {
                     eprintln!("Windows embedded renderer initialization failed: {error}");
+                    app.state::<native::NativeState>().set_embedded_error(error.to_string());
                 }
             }
             if let RunEvent::Exit = event {

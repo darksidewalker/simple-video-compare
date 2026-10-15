@@ -21,8 +21,7 @@ export function pollStatus<T>(read: () => Promise<T>, receive: (status: T) => vo
   return () => { stopped = true; cancel?.(); };
 }
 
-export type NativeStatus = { paths: string[]; duration: number; time: number; paused: boolean; mode: 'side' | 'slider' | 'blend' | 'diff'; amount: number; audio: 'A' | 'B' | 'mute'; volume: number; running: boolean };
-export type Probe = { format?: Record<string, unknown>; streams?: Record<string, unknown>[] };
+export type NativeStatus = { details?: boolean; paths: string[]; duration: number; time: number; paused: boolean; mode: 'side' | 'slider' | 'blend' | 'diff'; amount: number; audio: 'A' | 'B' | 'mute'; volume: number; running: boolean };
 
 export function formatTime(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds < 0) return '—';
@@ -31,21 +30,6 @@ export function formatTime(seconds: number): string {
   const minutes = Math.floor(ms / 60000) % 60;
   const second = Math.floor(ms / 1000) % 60;
   return `${hours ? hours + ':' : ''}${String(minutes).padStart(2, '0')}:${String(second).padStart(2, '0')}.${String(ms % 1000).padStart(3, '0')}`;
-}
-
-export function probeSummary(probe: Probe): [string, string][] {
-  const rows: [string, string][] = [];
-  const add = (prefix: string, object: Record<string, unknown>, fields: [string, string][]) => {
-    for (const [label, key] of fields) {
-      if (object[key] !== undefined && object[key] !== null) rows.push([prefix + label, String(object[key])]);
-    }
-  };
-  add('', probe.format || {}, [['Source', 'filename'], ['Container', 'format_long_name'], ['Duration (seconds)', 'duration'], ['Size (bytes)', 'size'], ['Bit rate (bit/s)', 'bit_rate']]);
-  for (const stream of probe.streams || []) {
-    const kind = stream.codec_type === 'video' ? 'Video' : stream.codec_type === 'audio' ? 'Audio' : 'Stream';
-    add(`${kind} #${stream.index ?? '—'} · `, stream, [['Codec', 'codec_name'], ['Profile', 'profile'], ['Width', 'width'], ['Height', 'height'], ['Frame rate', 'avg_frame_rate'], ['Nominal frame rate', 'r_frame_rate'], ['Pixel format', 'pix_fmt'], ['Bit depth', 'bits_per_raw_sample'], ['Bit rate (bit/s)', 'bit_rate'], ['Color space', 'color_space'], ['Color range', 'color_range'], ['Primaries', 'color_primaries'], ['Transfer', 'color_transfer'], ['Channels', 'channels'], ['Channel layout', 'channel_layout'], ['Sample rate (Hz)', 'sample_rate']]);
-  }
-  return rows;
 }
 
 type Box = { left: number; top: number; right: number; bottom: number };

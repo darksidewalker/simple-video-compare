@@ -34,6 +34,8 @@ The Linux executable has been exercised with real native rendering. The Windows 
 
 ## Comparing videos
 
+At startup the app checks the actual libmpv API, runs `ffprobe -version`, and checks its native video pane. **✓ Runtime** means all prerequisites passed; an amber warning means something is missing, incompatible or not ready. Click **Runtime** for each component's result, resolved file path and a corrective hint, or **Recheck backend** after fixing an installation. Checks are local and do not download tools, open a player or interrupt playback. A healthy backend does not guarantee that every codec/input will decode.
+
 Browse, drop a file onto source A or B, or paste an absolute path. Two selected or dropped files fill A and B in order. A single populated slot also works for ordinary playback. The timeline uses the longer source's duration and holds the shorter source's last frame at its end.
 
 - **Side:** both aligned sources side by side.
@@ -41,7 +43,7 @@ Browse, drop a file onto source A or B, or paste an absolute path. Two selected 
 - **Blend:** mix the two aligned frames.
 - **Diff:** show the aligned frame difference.
 - **Playback:** play/pause, seek, frame stepping, synchronization, fullscreen, audio A/B/mute and volume.
-- **Source details:** original ffprobe metadata and raw JSON, not proxy metadata.
+- **Source details:** toggle a separate metadata overlay for A and B directly on the native video. Each panel has a translucent dark background and opaque white text; dimensions and media properties come from that original source, not the aligned comparison output. No detail cards push the controls down.
 
 The Linux slider caches the packed A/B frame on the GPU. Dragging changes the displayed regions without rebuilding the video filter, seeking or decoding the paused frame again. It also works while playback continues. Blend and Windows retain the filter-based comparison path; Windows uses the A/B split control below the video rather than Linux's draggable native divider.
 

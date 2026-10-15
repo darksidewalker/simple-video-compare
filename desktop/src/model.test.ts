@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { selectPaths, dropTarget, formatTime, probeSummary, pollStatus } from './model.ts';
+import { selectPaths, dropTarget, formatTime, pollStatus } from './model.ts';
 
 it('polls only after a read finishes and stops on error without a retry flood', async () => {
   const tasks: (() => void)[] = [];
@@ -30,17 +30,6 @@ it('formats time without rounding into a nonexistent 60th second', () => {
   assert.equal(formatTime(59.999), '00:59.999');
   assert.equal(formatTime(3661.25), '1:01:01.250');
   assert.equal(formatTime(NaN), '—');
-});
-
-it('summarizes raw ffprobe source metadata without modifying it', () => {
-  const raw = { format: { filename: '/original.mkv', duration: '59.999', size: '2000', bit_rate: '5000' }, streams: [{ index: 0, codec_type: 'video', codec_name: 'hevc', width: 3840, height: 2160, avg_frame_rate: '24000/1001', pix_fmt: 'yuv420p10le', color_transfer: 'smpte2084' }, { index: 1, codec_type: 'audio', codec_name: 'flac', channels: 2, sample_rate: '48000' }] };
-  const before = JSON.stringify(raw);
-  const summary = probeSummary(raw);
-  assert.ok(summary.some(([label, value]) => label === 'Source' && value === '/original.mkv'));
-  assert.ok(summary.some(([label, value]) => label === 'Video #0 · Frame rate' && value === '24000/1001'));
-  assert.ok(summary.some(([label, value]) => label === 'Video #0 · Transfer' && value === 'smpte2084'));
-  assert.equal(JSON.stringify(raw), before);
-  assert.deepEqual(probeSummary({}), []);
 });
 
 it('maps native physical drop coordinates to the correct CSS slot at 2× scale', () => {

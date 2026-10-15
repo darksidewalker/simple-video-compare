@@ -130,6 +130,62 @@ impl Drop for SplitFrame {
     }
 }
 
+fn resolve_api() -> Result<Api, String> {
+        let candidates = if let Some(path) = std::env::var_os("DAWVC_LIBMPV") {
+            vec![PathBuf::from(path)]
+        } else {
+            let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+            let dir = exe.parent().ok_or("No executable directory")?;
+            vec![
+                dir.join("lib/libmpv.so.2"),
+                dir.join("libmpv.so.2"),
+                PathBuf::from("libmpv.so.2"),
+            ]
+        };
+        let mut loaded = None;
+        let mut errors = vec![];
+        for path in candidates {
+            match unsafe { Api::load(&path) } {
+                Ok(api) => {
+                    loaded = Some(api);
+                    break;
+                }
+                Err(e) => errors.push(format!("{}: {e}", path.display())),
+            }
+        }
+        loaded.ok_or_else(|| format!("Cannot load libmpv: {}", errors.join("; ")))
+}
+pub fn check_library() -> (Option<String>, Result<String, String>) {
+    let api = match resolve_api() {
+        Ok(api) => api,
+        Err(error) => return (std::env::var_os("DAWVC_LIBMPV").map(|p| p.to_string_lossy().into_owned()), Err(error)),
+    };
+    let path = unsafe {
+        let mut info: libc::Dl_info = std::mem::zeroed();
+        if libc::dladdr(api.mpv_create as *const c_void, &mut info) != 0 && !info.dli_fname.is_null() {
+            Some(CStr::from_ptr(info.dli_fname).to_string_lossy().into_owned())
+        } else { None }
+    };
+    let result = (|| {
+        let handle = unsafe { (api.mpv_create)() };
+        if handle.is_null() { return Err("mpv_create failed".into()); }
+        let result = (|| {
+            for (key, value) in [("config", "no"), ("vo", "null"), ("ao", "null")] {
+                let key = CString::new(key).unwrap();
+                let value = CString::new(value).unwrap();
+                let code = unsafe { (api.mpv_set_option_string)(handle, key.as_ptr(), value.as_ptr()) };
+                if code < 0 { return Err(format!("libmpv option failed: {code}")); }
+            }
+            let code = unsafe { (api.mpv_initialize)(handle) };
+            if code < 0 { return Err(format!("libmpv initialize failed: {code}")); }
+            Ok("Library exports loaded; isolated libmpv initialization succeeded".into())
+        })();
+        unsafe { (api.mpv_terminate_destroy)(handle); }
+        result
+    })();
+    (path, result)
+}
+
 pub struct Player {
     api: Api,
     handle: AtomicPtr<c_void>,
@@ -183,29 +239,7 @@ impl Player {
         }
     }
     pub fn new() -> Result<Arc<Self>, String> {
-        let candidates = if let Some(path) = std::env::var_os("DAWVC_LIBMPV") {
-            vec![PathBuf::from(path)]
-        } else {
-            let exe = std::env::current_exe().map_err(|e| e.to_string())?;
-            let dir = exe.parent().ok_or("No executable directory")?;
-            vec![
-                dir.join("lib/libmpv.so.2"),
-                dir.join("libmpv.so.2"),
-                PathBuf::from("libmpv.so.2"),
-            ]
-        };
-        let mut loaded = None;
-        let mut errors = vec![];
-        for path in candidates {
-            match unsafe { Api::load(&path) } {
-                Ok(api) => {
-                    loaded = Some(api);
-                    break;
-                }
-                Err(e) => errors.push(format!("{}: {e}", path.display())),
-            }
-        }
-        let api = loaded.ok_or_else(|| format!("Cannot load libmpv: {}", errors.join("; ")))?;
+        let api = resolve_api()?;
         // GTK sets the user's locale, but libmpv requires C decimal formatting.
         unsafe {
             libc::setlocale(libc::LC_NUMERIC, b"C\0".as_ptr().cast());
@@ -397,6 +431,8 @@ pub fn install(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>>
         let source = Rc::new(Cell::new((1, 1)));
         let visible = Rc::new(Cell::new(false));
         let dragging = Rc::new(Cell::new(false));
+        let details = Rc::new(RefCell::new([None, None]));
+        let details_draw = details.clone();
 
         let (split_draw, source_draw, visible_draw) = (split.clone(), source.clone(), visible.clone());
         divider.connect_draw(move |widget, cr| {
@@ -415,6 +451,7 @@ pub fn install(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>>
                 cr.set_source_rgb(1.0, 1.0, 1.0); let _ = cr.stroke();
                 cr.move_to(x - 7.0, top + h / 2.0); cr.line_to(x + 7.0, top + h / 2.0); let _ = cr.stroke();
             }
+            crate::source_overlay::draw_cairo(cr, widget.allocated_width() as f64, widget.allocated_height() as f64, &details_draw.borrow());
             gtk::glib::Propagation::Proceed
         });
         if let Some(accessible) = divider.accessible() {
@@ -469,6 +506,9 @@ pub fn install(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>>
         let weak = divider.downgrade();
         gtk::glib::timeout_add_local(std::time::Duration::from_millis(16), move || {
             let Some(divider) = weak.upgrade() else { return gtk::glib::ControlFlow::Break; };
+            if let Some(next) = state.overlay_details() {
+                if *details.borrow() != next { *details.borrow_mut() = next; divider.queue_draw(); }
+            }
             if let Some((status, dimensions)) = state.overlay_status() {
                     let show = status.running && status.mode == "slider" && status.paths.iter().filter(|p| !p.is_empty()).count() == 2;
                     let changed = visible.get() != show || source.get() != dimensions || (!dragging.get() && split.get() != status.amount);
@@ -493,7 +533,19 @@ pub fn install(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>>
 
 #[cfg(test)]
 mod tests {
-    use super::video_rect;
+    use super::*;
+    #[test]
+    fn backend_library_rejects_missing_library_and_missing_exports() {
+        assert!(unsafe { Api::load(std::path::Path::new("/missing/dawvc-libmpv.so")) }.is_err());
+        assert!(unsafe { Api::load(std::path::Path::new("libc.so.6")) }.is_err());
+    }
+    #[test]
+    #[ignore = "requires installed libmpv"]
+    fn backend_library_initializes_isolated_null_outputs() {
+        let (path, result) = check_library();
+        assert!(path.is_some());
+        assert!(result.is_ok(), "{result:?}");
+    }
     #[test]
     fn divider_uses_fitted_video_not_letterbox() {
         assert_eq!(video_rect(1600.0, 540.0, (320, 180)), (320.0, 0.0, 960.0, 540.0));

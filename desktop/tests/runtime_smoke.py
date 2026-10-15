@@ -21,6 +21,7 @@ mockIPC(async (command, args) => {
   if (command === 'plugin:window|scale_factor') return 1;
   if (command === 'native_probe') return {format: {filename: args.path}, streams: []};
   if (command === 'native_open') { f.status.paths = args.paths; f.status.running = true; return structuredClone(f.status); }
+  if (command === 'backend_check') return {ready: true, checks: []};
   if (command === 'native_status') return structuredClone(f.status);
   if (command === 'runtime_status') { f.checks++; return structuredClone(f.runtime); }
   if (command === 'runtime_install') {
@@ -56,7 +57,7 @@ with sync_playwright() as p:
     expect(page.get_by_role('button', name='Downloading runtime…')).to_be_disabled()
     expect(page.get_by_role('button', name='Browse A', exact=True)).to_be_disabled()
     expect(page.get_by_label('Volume', exact=True)).to_be_disabled()
-    page.get_by_role('button', name='Source details', exact=True).click()
+    expect(page.get_by_role('button', name='Source details', exact=True)).to_be_disabled()
     page.evaluate("document.dispatchEvent(new KeyboardEvent('keydown', {code: 'Space', key: ' '}))")
     page.evaluate("emitFixtureDrop({paths: ['/fixture/a.mkv', '/fixture/b.mkv'], position: {x: 0, y: 0}})")
     page.wait_for_function("fixture.nativeCalls.length > 0 || document.body.innerText.includes('A native operation is still in progress.')")
@@ -65,7 +66,7 @@ with sync_playwright() as p:
     expect(page.get_by_text('A native operation is still in progress. Try again when it finishes.', exact=True)).to_be_visible()
     expect(page.get_by_text('Runtime installed. Reopen the viewer to use it.', exact=True)).to_be_visible(timeout=10000)
     assert page.evaluate('fixture.installs') == 1
-    page.get_by_role('button', name='Source details', exact=True).click()
+    expect(page.get_by_role('button', name='Source details', exact=True)).to_be_disabled()
     page.get_by_role('button', name='Retry status', exact=True).click()
     expect(page.get_by_text('A native operation is still in progress. Try again when it finishes.', exact=True)).to_have_count(0)
     page.set_viewport_size({'width': 1200, 'height': 440})
@@ -97,7 +98,7 @@ with sync_playwright() as p:
     expect(page.get_by_role('button', name='Browse A', exact=True)).to_be_enabled()
     page.evaluate("fixture.nativeCalls = []; emitFixtureDrop({paths: ['/fixture/a.mkv', '/fixture/b.mkv'], position: {x: 0, y: 0}})")
     expect(page.get_by_role('button', name='Stop viewer', exact=True)).to_be_enabled()
-    assert page.evaluate("fixture.nativeCalls.map(call => call.command).sort()") == ['native_open', 'native_probe', 'native_probe']
+    assert page.evaluate("fixture.nativeCalls.map(call => call.command).sort()") == ['native_open']
     expect(page.get_by_label('Volume', exact=True)).to_be_enabled()
     assert not errors, errors
     browser.close()

@@ -25,6 +25,7 @@ window.emitFixtureDrop = payload => emit('tauri://drag-drop', payload);
 mockIPC(async (command, args) => {
   const f = window.fixture;
   f.calls.push({command, args});
+  if (command === 'backend_check') return {ready: true, checks: [{name:'libmpv',ok:true,path:'/fixture/libmpv.so.2',detail:'API ready',hint:''},{name:'ffprobe',ok:true,path:'/fixture/ffprobe',detail:'ffprobe fixture',hint:''},{name:'Native video pane',ok:true,path:null,detail:'Ready',hint:''}]};
   if (command === 'runtime_status') return {supported: false};
   if (command === 'native_status') {
     f.maxActive = Math.max(f.maxActive, ++f.active);
@@ -47,6 +48,7 @@ mockIPC(async (command, args) => {
       if (args.action === 'seek') f.status.time = args.value;
       if (['mode', 'amount', 'audio', 'volume'].includes(args.action)) f.status[args.action] = args.value;
       if (args.action === 'stop') f.status.running = false;
+      if (args.action === 'sourceDetails') f.status.details = args.value;
       f.completed.push({...args});
       return structuredClone(f.status);
     } finally { f.active--; }
@@ -186,9 +188,9 @@ with sync_playwright() as playwright:
     page.evaluate('fixture.controlDelay = 0')
     page.get_by_role('button', name='Native fullscreen').click()
     page.get_by_role('button', name='Source details').click()
-    expect(page.get_by_text('smpte2084', exact=True)).to_have_count(2)
-    page.get_by_text('Raw ffprobe JSON', exact=True).first.click()
-    expect(page.locator('pre').first).to_contain_text('yuv420p10le')
+    expect(page.get_by_role('button', name='Source details')).to_have_attribute('aria-pressed', 'true')
+    assert page.evaluate("fixture.completed.some(call => call.action === 'sourceDetails' && call.value === true)")
+    assert page.locator('.details-grid').count() == 0, 'Source details belong on native video, not below controls'
     page.evaluate("fixture.pick = []")
     page.get_by_role('button', name='Browse A').click()
     expect(page.locator('#path-A')).to_have_value('/fixture/original.mkv')
@@ -211,4 +213,4 @@ with sync_playwright() as playwright:
     assert not errors, errors
     (ARTIFACTS / 'ipc-calls.json').write_text(json.dumps(page.evaluate('fixture.calls'), indent=2))
     browser.close()
-print(f'PASS: browser guard, responsive rendering, native fixture commands, live coalesced ranges, serialized polling/control errors, 2× B-drop targeting, source JSON, polling failure/retry, quit. Artifacts: {ARTIFACTS}')
+print(f'PASS: browser guard, responsive rendering, native fixture commands, live coalesced ranges, serialized polling/control errors, 2× B-drop targeting, native source-detail toggle, polling failure/retry, quit. Artifacts: {ARTIFACTS}')

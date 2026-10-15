@@ -78,6 +78,42 @@ fn dll_candidates(override_path: Option<PathBuf>, exe: &Path, managed: Option<Pa
     Ok(candidates)
 }
 
+fn resolve_api() -> Result<(PathBuf, Api), String> {
+        let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+        let candidates = dll_candidates(std::env::var_os("DAWVC_LIBMPV").map(PathBuf::from), &exe, crate::runtime::installed_dir())?;
+        let mut loaded = None;
+        let mut errors = vec![];
+        for path in candidates {
+            match unsafe { Api::load(&path) } {
+                Ok(api) => {
+                    loaded = Some((path, api));
+                    break;
+                }
+                Err(error) => errors.push(format!("{}: {error}", path.display())),
+            }
+        }
+        loaded.ok_or_else(|| format!("Cannot load libmpv: {}", errors.join("; ")))
+}
+pub fn check_library() -> (Option<String>, Result<String, String>) {
+    let (path, api) = match resolve_api() {
+        Ok(loaded) => loaded,
+        Err(error) => return (std::env::var_os("DAWVC_LIBMPV").map(|p| p.to_string_lossy().into_owned()), Err(error)),
+    };
+    let result = (|| {
+        let handle = unsafe { (api.create)() };
+        if handle.is_null() { return Err("mpv_create failed".into()); }
+        let instance = Runtime { api, handle: handle as usize };
+        for (key, value) in [("config", "no"), ("vo", "null"), ("ao", "null")] {
+            let key = CString::new(key).unwrap();
+            let value = CString::new(value).unwrap();
+            instance.api.check(unsafe { (instance.api.option)(handle, key.as_ptr(), value.as_ptr()) })?;
+        }
+        instance.api.check(unsafe { (instance.api.initialize)(handle) })?;
+        Ok("Library exports loaded; isolated libmpv initialization succeeded".into())
+    })();
+    (Some(path.to_string_lossy().into_owned()), result)
+}
+
 struct Runtime {
     api: Api,
     handle: usize,
@@ -132,20 +168,7 @@ impl Player {
         if runtime.is_some() {
             return Ok(());
         }
-        let exe = std::env::current_exe().map_err(|e| e.to_string())?;
-        let candidates = dll_candidates(std::env::var_os("DAWVC_LIBMPV").map(PathBuf::from), &exe, crate::runtime::installed_dir())?;
-        let mut loaded = None;
-        let mut errors = vec![];
-        for path in candidates {
-            match unsafe { Api::load(&path) } {
-                Ok(api) => {
-                    loaded = Some(api);
-                    break;
-                }
-                Err(error) => errors.push(format!("{}: {error}", path.display())),
-            }
-        }
-        let api = loaded.ok_or_else(|| format!("Cannot load libmpv: {}", errors.join("; ")))?;
+        let (_, api) = resolve_api()?;
         let handle = unsafe { (api.create)() };
         if handle.is_null() {
             return Err("mpv_create failed".into());

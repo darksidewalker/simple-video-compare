@@ -45,6 +45,8 @@ assert 'Native operation failed' not in initial, initial
 script = '''window.__verification = null; (async () => {
 try {
 const invoke = window.__TAURI__.core.invoke;
+const backend = await invoke('backend_check');
+if (!backend.ready || !backend.checks.every(check => check.ok)) throw JSON.stringify(backend);
 const states = [];
 for (const paths of [['', PATHS[1]], [PATHS[0], ''], PATHS]) {
   for (let i = 0; i < 2; i++) {
@@ -59,6 +61,9 @@ for (const paths of [['', PATHS[1]], [PATHS[0], ''], PATHS]) {
   if (!status.running || JSON.stringify(status.paths) !== JSON.stringify(paths)) throw 'UI did not open the expected source slots';
   if (!paths[0] && status.audio !== 'B') throw 'B-only audio was assigned to A';
   if (!paths[1] && status.audio !== 'A') throw 'A-only audio was assigned to B';
+  if (!(await invoke('native_control', {action: 'sourceDetails', value: true})).details) throw 'Native details did not enable';
+  await new Promise(resolve => setTimeout(resolve, 150));
+  if ((await invoke('native_control', {action: 'sourceDetails', value: false})).details) throw 'Native details did not disable';
   states.push(status);
 }
 if (document.querySelector('[role="alert"]')) throw document.querySelector('[role="alert"]').innerText;
@@ -83,10 +88,15 @@ else:
 assert 'error' not in result, result
 assert all(state['running'] for state in result['states'])
 assert result['states'][-1]['time'] > 2, result
+for _ in range(20):
+    result['text'] = evaluate('document.body.innerText')
+    if 'Playing' in result['text']:
+        break
+    time.sleep(.25)
 assert 'Playing' in result['text'], result
 assert 'Native operation failed' not in result['text'], result
 assert evaluate('document.querySelector(".mix-row").getBoundingClientRect().bottom <= innerHeight'), 'Audio/volume controls are clipped'
 print(json.dumps(result['states'][-1], indent=2))
 evaluate('setTimeout(() => [...document.querySelectorAll("button")].find(button => button.textContent === "Quit").click(), 100)')
 ws.close()
-print('PASS: real UI source loading, event-listen permission, scale, all modes, seek and advancing playback; Quit requested.')
+print('PASS: backend readiness, native details toggles, real UI source loading, event-listen permission, scale, all modes, seek and advancing playback; Quit requested.')
